@@ -1,378 +1,649 @@
-import { DayPlan, NutritionTip, Exercise } from './types';
+import { DayPlan, NutritionTip, Exercise, WorkoutSet } from './types';
 
-const COMMON_WARMUP: Exercise[] = [
+export const RARITY_COLORS = {
+  Common: '#7eef6d',
+  Unusual: '#ffe65d',
+  Rare: '#4d52e3',
+  Epic: '#861fde',
+  Legendary: '#f1af1f',
+  Mythic: '#e13333',
+  Ultra: '#33e1e1',
+  Super: '#e133e1',
+};
+
+export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
+  // WARMUP
   {
     id: 'jumping-jacks',
     name: '开合跳 (Jumping Jacks)',
-    description: '1. 站立位，双脚并拢，手臂自然下垂。2. 跳起时双脚向两侧分开，同时双手在头顶上方击掌。3. 跳回起始位置，双脚并拢，手臂放下。',
+    description: '站立位，双脚并拢，手臂自然下垂。跳起时双脚向两侧分开，同时双手在头顶上方击掌。',
     sets: '1 组',
     reps: '60 秒',
     tips: ['提高心率', '全身热身', '节奏均匀'],
     category: 'Warmup',
-    imageUrl: 'https://picsum.photos/seed/jumping-jacks/400/300'
+    equipment: 'None',
+    targetMuscles: ['Full Body', 'Heart'],
+    rarity: 'Common',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双脚并拢站立，手臂放在身体两侧。', audioCue: '准备开始' },
+      { step: '跳跃', instruction: '跳起并将双腿分开，同时双手在头顶上方击掌。', audioCue: '向上跳' },
+      { step: '返回', instruction: '跳回起始位置，双脚并拢。', audioCue: '收回' }
+    ]
   },
   {
     id: 'arm-circles',
     name: '手臂环绕 (Arm Circles)',
-    description: '1. 双脚与肩同宽站立，手臂向两侧平举。2. 以肩关节为轴，手臂做小幅度圆周运动。3. 顺时针和逆时针各做一半时间。',
+    description: '双脚与肩同宽站立，手臂向两侧平举。以肩关节为轴，手臂做小幅度圆周运动。',
     sets: '1 组',
     reps: '30 秒',
     tips: ['活动肩关节', '幅度由小到大'],
     category: 'Warmup',
-    imageUrl: 'https://picsum.photos/seed/arm-circles/400/300'
-  },
-  {
-    id: 'side-stretch',
-    name: '动态侧拉伸 (Dynamic Side Stretch)',
-    description: '1. 双脚宽于肩站立。2. 一只手叉腰，另一只手向对侧上方伸展。3. 左右交替进行，感受侧腹拉伸。',
-    sets: '1 组',
-    reps: '30 秒',
-    tips: ['拉伸侧腹', '动作流畅'],
-    category: 'Warmup',
-    imageUrl: 'https://picsum.photos/seed/side-stretch/400/300'
+    equipment: 'None',
+    targetMuscles: ['Shoulders'],
+    rarity: 'Common',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双臂向两侧平举，掌心向下。', audioCue: '手臂平举' },
+      { step: '环绕', instruction: '以肩部为轴，做顺时针或逆时针的小圆周运动。', audioCue: '开始环绕' }
+    ]
   },
   {
     id: 'high-knees',
     name: '高抬腿 (High Knees)',
-    description: '1. 原地跑步，尽可能将膝盖抬高至腰部高度。2. 摆动双臂配合。3. 保持核心收紧，背部挺直。',
+    description: '原地跑步，尽可能将膝盖抬高至腰部高度。摆动双臂配合。',
     sets: '1 组',
     reps: '60 秒',
     tips: ['激活下肢', '核心发力'],
     category: 'Warmup',
-    imageUrl: 'https://picsum.photos/seed/high-knees/400/300'
+    equipment: 'None',
+    targetMuscles: ['Legs', 'Core'],
+    rarity: 'Unusual',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双脚与肩同宽站立。', audioCue: '准备' },
+      { step: '动作', instruction: '交替抬高膝盖至腰部高度，手臂配合摆动。', safetyTip: '保持背部挺直，不要后仰。', audioCue: '抬高膝盖' }
+    ]
   },
   {
-    id: 'cat-cow',
-    name: '猫驼式 (Cat-Cow)',
-    description: '1. 四足跪姿，双手在肩下，膝盖在臀下。2. 吸气抬头塌腰（猫式），呼气低头拱背（驼式）。3. 缓慢有节奏地移动。',
+    id: 'dynamic-side-stretch',
+    name: '动态侧拉伸 (Dynamic Side Stretch)',
+    description: '双脚宽于肩站立，双手叉腰。身体向一侧倾斜，感受侧腹拉伸，然后换另一侧。',
     sets: '1 组',
-    reps: '60 秒',
-    tips: ['活动脊柱', '配合呼吸'],
+    reps: '30 秒',
+    tips: ['动作轻柔', '感受拉伸'],
     category: 'Warmup',
-    imageUrl: 'https://picsum.photos/seed/cat-cow/400/300'
-  }
-];
-
-const COMMON_COOLDOWN: Exercise[] = [
+    equipment: 'None',
+    targetMuscles: ['Obliques'],
+    rarity: 'Unusual',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双脚宽距站立。', audioCue: '准备' },
+      { step: '拉伸', instruction: '身体向侧方倾斜，手臂举过头顶。', audioCue: '向侧方拉伸' }
+    ]
+  },
+  // PLAN A - LOWER / EXPLOSIVE
+  {
+    id: 'squats',
+    name: '深蹲 (Squats)',
+    description: '双脚与肩同宽，脚尖微外展。臀部向后下方坐，膝盖不要超过脚尖，下蹲至大腿与地面平行。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['重心在脚跟', '挺胸收腹', '膝盖与脚尖方向一致'],
+    category: 'Lower',
+    equipment: 'None',
+    targetMuscles: ['Quads', 'Glutes', 'Hamstrings'],
+    rarity: 'Common',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双脚与肩同宽站立，双手前平举或叉腰。', audioCue: '准备深蹲' },
+      { step: '下蹲', instruction: '吸气，臀部向后坐，膝盖微曲，下蹲至大腿平行地面。', safetyTip: '膝盖不要内扣。', audioCue: '慢慢下蹲' },
+      { step: '站起', instruction: '呼气，脚跟发力站起，回到起始位置。', audioCue: '发力站起' }
+    ]
+  },
+  {
+    id: 'lunges',
+    name: '箭步蹲 (Lunges)',
+    description: '双脚并拢站立。向前迈出一大步，下蹲至双膝呈 90 度，后膝接近地面。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['身体垂直下蹲', '前膝不要超过脚尖', '保持平衡'],
+    category: 'Lower',
+    equipment: 'None',
+    targetMuscles: ['Quads', 'Glutes'],
+    rarity: 'Unusual',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双脚并拢站立，双手叉腰。', audioCue: '准备箭步蹲' },
+      { step: '迈步', instruction: '向前迈出一大步，重心垂直下移。', safetyTip: '前膝不要超过脚尖。', audioCue: '向前迈步' },
+      { step: '返回', instruction: '前脚发力推回，回到起始位置。', audioCue: '收回' }
+    ]
+  },
+  {
+    id: 'burpees',
+    name: '波比跳 (Burpees)',
+    description: '从站立姿势开始，下蹲并将双手着地，双脚向后跳成平板支撑，做一个俯卧撑，双脚向前跳回，最后垂直跳起。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['增加心率', '刺激生长激素', '动作连贯'],
+    category: 'Full Body',
+    equipment: 'None',
+    targetMuscles: ['Full Body', 'Heart', 'Legs'],
+    rarity: 'Epic',
+    demonstrationSteps: [
+      { step: '下蹲', instruction: '从站立姿势下蹲，双手撑地。', audioCue: '蹲下' },
+      { step: '后跳', instruction: '双脚向后跳成平板支撑。', audioCue: '向后跳' },
+      { step: '俯卧撑', instruction: '做一个俯卧撑（可选）。', audioCue: '俯卧撑' },
+      { step: '收回', instruction: '双脚向前跳回手部位置。', audioCue: '收回' },
+      { step: '跳跃', instruction: '垂直向上跳起，双手举过头顶。', audioCue: '向上跳' }
+    ]
+  },
+  {
+    id: 'bulgarian-split-squat-l',
+    name: '保加利亚剪蹲 (左)',
+    description: '背对椅子站立，左脚面搭在椅子上。右脚向前迈出一大步，下蹲至右大腿与地面平行。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['跑步推进力的核心来源', '保持背部挺直', '重心在右脚跟'],
+    category: 'Lower',
+    equipment: 'Chair',
+    targetMuscles: ['Glutes', 'Quads', 'Hamstrings'],
+    demonstrationSteps: [
+      { step: '准备', instruction: '左脚搭在椅子上，右脚向前迈步。', audioCue: '准备' },
+      { step: '下蹲', instruction: '重心垂直下降，直到右大腿平行地面。', safetyTip: '保持躯干挺直。', audioCue: '下蹲' },
+      { step: '站起', instruction: '右脚发力站起。', audioCue: '站起' }
+    ]
+  },
+  {
+    id: 'bulgarian-split-squat-r',
+    name: '保加利亚剪蹲 (右)',
+    description: '背对椅子站立，右脚面搭在椅子上。左脚向前迈出一大步，下蹲至左大腿与地面平行。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['跑步推进力的核心来源', '保持背部挺直', '重心在左脚跟'],
+    category: 'Lower',
+    equipment: 'Chair',
+    targetMuscles: ['Glutes', 'Quads', 'Hamstrings'],
+    demonstrationSteps: [
+      { step: '准备', instruction: '右脚搭在椅子上，左脚向前迈步。', audioCue: '准备' },
+      { step: '下蹲', instruction: '重心垂直下降，直到左大腿平行地面。', safetyTip: '保持躯干挺直。', audioCue: '下蹲' },
+      { step: '站起', instruction: '左脚发力站起。', audioCue: '站起' }
+    ]
+  },
+  {
+    id: 'vertical-jumps',
+    name: '垂直跳 (Vertical Jumps)',
+    description: '双脚与肩同宽，微蹲蓄力，然后全力向上跳起，手臂向上摆动。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['全力起跳', '落地缓冲', '核心收紧'],
+    category: 'Lower',
+    equipment: 'None',
+    targetMuscles: ['Legs', 'Explosive Power'],
+    rarity: 'Super',
+    demonstrationSteps: [
+      { step: '蓄力', instruction: '微蹲，手臂向后摆。', audioCue: '蓄力' },
+      { step: '起跳', instruction: '全力向上跳，手臂向上摆。', audioCue: '跳！' },
+      { step: '落地', instruction: '脚掌着地，膝盖微曲缓冲。', safetyTip: '落地要轻。', audioCue: '缓冲' }
+    ]
+  },
+  {
+    id: 'calf-raises',
+    name: '单腿提踵 (Calf Raises)',
+    description: '单脚站立在台阶边缘或平地，脚跟尽量下压，然后发力提起脚跟至最高点。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['提升跑步时的支撑力', '慢放快提', '感受小腿拉伸'],
+    category: 'Lower',
+    equipment: 'None',
+    targetMuscles: ['Calves'],
+    rarity: 'Rare',
+    demonstrationSteps: [
+      { step: '准备', instruction: '单脚站立，手可以扶墙保持平衡。', audioCue: '准备' },
+      { step: '提踵', instruction: '发力提起脚跟，直到最高点。', audioCue: '提踵' },
+      { step: '下放', instruction: '缓慢放下脚跟。', audioCue: '慢慢放下' }
+    ]
+  },
+  {
+    id: 'plank',
+    name: '平板支撑 (Plank)',
+    description: '双肘支撑在地面，身体呈一直线，核心收紧，保持不动。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['不要塌腰', '不要翘臀', '均匀呼吸'],
+    category: 'Core',
+    equipment: 'None',
+    targetMuscles: ['Core', 'Abs'],
+    rarity: 'Unusual',
+    demonstrationSteps: [
+      { step: '准备', instruction: '手肘撑地，双脚向后伸直。', audioCue: '撑起身体' },
+      { step: '保持', instruction: '身体呈一直线，核心发力。', safetyTip: '不要塌腰。', audioCue: '坚持住' }
+    ]
+  },
+  {
+    id: 'step-ups',
+    name: '椅子登阶 (Step-ups)',
+    description: '面对椅子站立，一只脚踏上椅子，发力站起，另一只脚跟上。交替进行。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['重心在支撑脚', '控制下放速度', '核心收紧'],
+    category: 'Lower',
+    equipment: 'Chair',
+    targetMuscles: ['Quads', 'Glutes'],
+    rarity: 'Ultra',
+    demonstrationSteps: [
+      { step: '准备', instruction: '面对椅子站立。', audioCue: '准备' },
+      { step: '登阶', instruction: '一只脚踏上椅子并站直。', audioCue: '踏上' },
+      { step: '下放', instruction: '缓慢回到地面。', audioCue: '走下' }
+    ]
+  },
+  {
+    id: 'squat-jumps',
+    name: '深蹲跳 (Squat Jumps)',
+    description: '深蹲至大腿平行地面，然后全力向上跳起，落地后立即进入下一次深蹲。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['全力起跳', '轻盈落地', '动作连贯'],
+    category: 'Lower',
+    equipment: 'None',
+    targetMuscles: ['Quads', 'Glutes', 'Explosive Power'],
+    rarity: 'Legendary',
+    demonstrationSteps: [
+      { step: '深蹲', instruction: '下蹲至大腿平行地面。', audioCue: '蹲下' },
+      { step: '跳跃', instruction: '全力向上跳起。', audioCue: '跳！' },
+      { step: '落地', instruction: '轻盈落地并缓冲。', audioCue: '落地' }
+    ]
+  },
+  {
+    id: 'plank-crawl',
+    name: '平板支撑爬行',
+    description: '呈平板支撑姿势，双手和双脚配合向前或向后小幅度爬行。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['保持身体平直', '核心极度收紧', '小步移动'],
+    category: 'Core',
+    equipment: 'None',
+    targetMuscles: ['Core', 'Shoulders'],
+    rarity: 'Mythic',
+    demonstrationSteps: [
+      { step: '准备', instruction: '呈平板支撑姿势。', audioCue: '准备' },
+      { step: '爬行', instruction: '手脚配合向前小步爬行。', audioCue: '开始爬行' }
+    ]
+  },
+  {
+    id: 'diamond-pushups',
+    name: '钻石俯卧撑',
+    description: '双手食指和拇指相对呈钻石型放在胸下，下压并撑起。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['侧重三头肌', '手肘贴近身体', '核心收紧'],
+    category: 'Upper Push',
+    equipment: 'None',
+    targetMuscles: ['Triceps', 'Chest'],
+    rarity: 'Mythic',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双手呈钻石型撑地。', audioCue: '准备' },
+      { step: '下压', instruction: '身体下降。', audioCue: '向下' },
+      { step: '撑起', instruction: '发力撑起。', audioCue: '向上' }
+    ]
+  },
+  {
+    id: 'mountain-climber',
+    name: '登山者 (Mountain Climber)',
+    description: '双手撑地呈平板支撑，双腿交替快速向胸部提膝，模拟快速奔跑。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['保持腹部收紧', '模拟快速奔跑', '频率均匀'],
+    category: 'Core',
+    equipment: 'None',
+    targetMuscles: ['Core', 'Heart'],
+    rarity: 'Rare',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双手撑地呈平板支撑姿势。', audioCue: '准备' },
+      { step: '动作', instruction: '交替快速向胸部提膝。', audioCue: '开始跑' }
+    ]
+  },
+  // PLAN B - UPPER / POSTURE
+  {
+    id: 'standard-pushups',
+    name: '标准俯卧撑',
+    description: '双手略宽于肩。身体呈一直线，下压至胸部接近地面。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['如果力竭，可以换成跪姿', '核心收紧', '挺胸'],
+    category: 'Upper Push',
+    equipment: 'None',
+    targetMuscles: ['Chest', 'Triceps', 'Shoulders'],
+    rarity: 'Common',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双手撑地，略宽于肩。', audioCue: '准备' },
+      { step: '下压', instruction: '身体下降直到胸部接近地面。', safetyTip: '身体保持直线。', audioCue: '向下' },
+      { step: '撑起', instruction: '发力推回起始位置。', audioCue: '向上推' }
+    ]
+  },
+  {
+    id: 'pike-pushups',
+    name: 'Pike 俯卧撑',
+    description: '身体呈倒 V 型，双手撑地，头向下压至接近地面，然后撑起。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['锻炼肩部力量', '控制速度'],
+    category: 'Upper Push',
+    equipment: 'None',
+    targetMuscles: ['Shoulders', 'Triceps'],
+    rarity: 'Legendary',
+    demonstrationSteps: [
+      { step: '准备', instruction: '身体呈倒 V 型。', audioCue: '准备' },
+      { step: '下压', instruction: '头向双手之间下压。', audioCue: '向下' },
+      { step: '撑起', instruction: '发力撑起。', audioCue: '向上' }
+    ]
+  },
+  {
+    id: 'dips',
+    name: '椅子臂屈伸 (Dips)',
+    description: '双手撑在椅子边缘，双腿向前伸直。屈肘下放臀部，然后发力撑起。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['臀部贴近椅子', '手臂垂直上下', '侧重三头肌'],
+    category: 'Upper Push',
+    equipment: 'Chair',
+    targetMuscles: ['Triceps', 'Shoulders'],
+    rarity: 'Rare',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双手撑在椅子边缘，双腿前伸。', audioCue: '准备' },
+      { step: '下放', instruction: '屈肘下放臀部。', safetyTip: '臀部贴近椅子。', audioCue: '向下' },
+      { step: '撑起', instruction: '发力撑起。', audioCue: '向上' }
+    ]
+  },
+  {
+    id: 'inverted-row',
+    name: '桌下划船 (Inverted Row)',
+    description: '钻到结实的桌子下方，双手抓住桌边，身体呈一直线，向上拉起胸部。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['改善圆肩', '背部/二头肌发力', '确保桌子稳固'],
+    category: 'Upper Pull',
+    equipment: 'Table',
+    targetMuscles: ['Back', 'Biceps'],
+    rarity: 'Epic',
+    demonstrationSteps: [
+      { step: '准备', instruction: '仰卧在桌下，双手抓稳桌边。', audioCue: '抓稳桌子' },
+      { step: '拉起', instruction: '发力将胸部拉向桌边。', safetyTip: '肩胛骨收紧。', audioCue: '向上拉' },
+      { step: '下放', instruction: '缓慢放下。', audioCue: '慢慢放下' }
+    ]
+  },
+  {
+    id: 'sit-ups',
+    name: '仰卧起坐 (Sit-ups)',
+    description: '仰卧，膝盖弯曲，双脚平放。利用腹部力量将上半身抬起，直到胸部接近膝盖。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['不要抱头', '腹部发力', '控制速度'],
+    category: 'Core',
+    equipment: 'None',
+    targetMuscles: ['Abs', 'Core'],
+    rarity: 'Unusual',
+    demonstrationSteps: [
+      { step: '准备', instruction: '仰卧，膝盖弯曲，双手放在耳侧或胸前。', audioCue: '准备' },
+      { step: '起坐', instruction: '腹部发力抬起上半身。', safetyTip: '不要用手拉脖子。', audioCue: '坐起来' },
+      { step: '下放', instruction: '缓慢躺下。', audioCue: '慢慢躺下' }
+    ]
+  },
+  {
+    id: 'superman',
+    name: '超人式 (Superman)',
+    description: '俯卧在地面，同时抬起双臂和双腿，胸部离地，保持 2 秒后放下。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['拉开脊柱间隙', '后背/脊柱发力', '不要仰头'],
+    category: 'Upper Pull',
+    equipment: 'None',
+    targetMuscles: ['Lower Back', 'Glutes'],
+    rarity: 'Rare',
+    demonstrationSteps: [
+      { step: '准备', instruction: '俯卧，手臂向前伸直。', audioCue: '准备' },
+      { step: '抬起', instruction: '同时抬起手臂和双腿。', audioCue: '起！' },
+      { step: '放下', instruction: '缓慢放下。', audioCue: '放下' }
+    ]
+  },
+  {
+    id: 'wall-w-stretch',
+    name: '靠墙 W 拉伸',
+    description: '背靠墙站立，手臂贴墙呈 W 型。缓慢向上滑动至 Y 型，再回到 W 型。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['手臂贴墙滑动', '矫正体态', '肩胛骨收紧'],
+    category: 'Upper Pull',
+    equipment: 'Wall',
+    targetMuscles: ['Shoulders', 'Upper Back'],
+    rarity: 'Unusual',
+    demonstrationSteps: [
+      { step: '准备', instruction: '背靠墙，手臂呈 W 型。', audioCue: '贴墙' },
+      { step: '滑动', instruction: '手臂贴墙向上滑动成 Y 型。', audioCue: '向上滑' }
+    ]
+  },
+  {
+    id: 'dynamic-plank',
+    name: '动态平板支撑',
+    description: '从手肘支撑平板切换到手掌支撑平板，再切回手肘支撑。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['核心/手臂发力', '手肘手掌交替切换', '身体不要晃动'],
+    category: 'Core',
+    equipment: 'None',
+    targetMuscles: ['Core', 'Shoulders', 'Triceps'],
+    rarity: 'Rare',
+    demonstrationSteps: [
+      { step: '准备', instruction: '手肘撑地呈平板支撑。', audioCue: '准备' },
+      { step: '切换', instruction: '单手撑起变手掌支撑，再换回手肘。', audioCue: '开始切换' }
+    ]
+  },
+  {
+    id: 'leg-raises',
+    name: '仰卧举腿',
+    description: '仰卧，双手抓稳椅子腿。双腿伸直缓慢抬起至垂直，再慢速下放。',
+    sets: '3 轮',
+    reps: '45 秒',
+    tips: ['慢速下放', '控制核心', '下腹部发力'],
+    category: 'Core',
+    equipment: 'Chair',
+    targetMuscles: ['Abs', 'Core'],
+    rarity: 'Rare',
+    demonstrationSteps: [
+      { step: '准备', instruction: '仰卧，双手抓稳支撑点。', audioCue: '准备' },
+      { step: '举腿', instruction: '双腿伸直抬起至垂直。', audioCue: '抬腿' },
+      { step: '下放', instruction: '缓慢下放双腿。', audioCue: '慢慢放下' }
+    ]
+  },
+  // HEIGHT OPTIMIZATION
+  {
+    id: 'dead-hang',
+    name: '悬挂 (Dead Hang)',
+    description: '双手抓住单杠或稳固支撑点，全身放松自然下垂。',
+    sets: '5 组',
+    reps: '60 秒',
+    tips: ['拉开脊柱间隙', '全身放松'],
+    category: 'Full Body',
+    equipment: 'Bar',
+    targetMuscles: ['Back', 'Spine'],
+    rarity: 'Legendary',
+    demonstrationSteps: [
+      { step: '准备', instruction: '双手抓紧单杠。', audioCue: '抓紧' },
+      { step: '悬挂', instruction: '全身放松下垂。', audioCue: '放松' }
+    ]
+  },
   {
     id: 'cobra-pose',
     name: '眼镜蛇式 (Cobra Pose)',
-    description: '1. 俯卧，双手放在胸部两侧。2. 伸直手臂抬起上半身，髋部保持贴地。3. 抬头看向上方，感受腹部和背部拉伸。',
+    description: '俯卧，双手撑在胸侧，发力抬起上半身，感受腹部拉伸。',
     sets: '1 组',
     reps: '60 秒',
-    tips: ['拉伸腹部', '放松腰椎'],
-    category: 'Cooldown',
-    imageUrl: 'https://picsum.photos/seed/cobra-pose/400/300'
-  },
-  {
-    id: 'down-dog',
-    name: '下犬式 (Downward Dog)',
-    description: '1. 四足跪姿，抬起臀部，身体呈倒 V 字型。2. 尽量伸直双腿，脚后跟踩向地面。3. 头部放在双臂之间，感受后背和腿后侧拉伸。',
-    sets: '1 组',
-    reps: '60 秒',
-    tips: ['拉伸全身后侧', '深呼吸'],
-    category: 'Cooldown',
-    imageUrl: 'https://picsum.photos/seed/down-dog/400/300'
-  },
-  {
-    id: 'dead-hang-cool',
-    name: '静态悬挂 (Dead Hang)',
-    description: '1. 找到单杠或稳固的支撑物。2. 双手抓牢，全身放松下垂。3. 感受脊柱被重力自然拉开。',
-    sets: '1 组',
-    reps: '60 秒',
-    tips: ['脊柱减压', '彻底放松'],
-    category: 'Cooldown',
-    imageUrl: 'https://picsum.photos/seed/dead-hang/400/300'
+    tips: ['不要耸肩', '深呼吸'],
+    category: 'Full Body',
+    equipment: 'None',
+    targetMuscles: ['Abs', 'Lower Back'],
+    rarity: 'Unusual',
+    demonstrationSteps: [
+      { step: '准备', instruction: '俯卧在地面。', audioCue: '准备' },
+      { step: '撑起', instruction: '双手撑地抬起上半身。', audioCue: '向上撑起' }
+    ]
   },
   {
     id: 'quad-stretch',
     name: '站立大腿拉伸 (Quad Stretch)',
-    description: '1. 站立，一只手扶墙保持平衡。2. 另一只手向后抓住同侧脚踝，将脚后跟拉向臀部。3. 保持双膝并拢，感受大腿前侧拉伸。',
+    description: '单脚站立，另一只手向后抓住脚踝，将脚跟拉向臀部。',
     sets: '1 组',
     reps: '60 秒',
-    tips: ['拉伸股四头肌', '换腿进行'],
-    category: 'Cooldown',
-    imageUrl: 'https://picsum.photos/seed/quad-stretch/400/300'
+    tips: ['保持平衡', '感受大腿前侧拉伸'],
+    category: 'Full Body',
+    equipment: 'None',
+    targetMuscles: ['Quads'],
+    rarity: 'Unusual',
+    demonstrationSteps: [
+      { step: '准备', instruction: '单脚站立。', audioCue: '准备' },
+      { step: '拉伸', instruction: '向后抓脚踝，拉向臀部。', audioCue: '开始拉伸' }
+    ]
+  },
+  {
+    id: 'downward-dog',
+    name: '下犬式 (Downward Dog)',
+    description: '身体呈倒 V 型，手脚撑地，臀部向斜上方顶起。',
+    sets: '3 组',
+    reps: '60 秒',
+    tips: ['拉伸后侧', '背部挺直'],
+    category: 'Full Body',
+    equipment: 'None',
+    targetMuscles: ['Hamstrings', 'Back'],
+    rarity: 'Rare',
+    demonstrationSteps: [
+      { step: '准备', instruction: '手脚撑地。', audioCue: '准备' },
+      { step: '顶起', instruction: '臀部向斜上方顶起成倒 V 型。', audioCue: '顶起臀部' }
+    ]
+  },
+  {
+    id: 'cat-cow',
+    name: '猫驼式 (Cat-Cow)',
+    description: '四足跪姿，吸气时塌腰抬头，呼气时拱背收腹。',
+    sets: '3 组',
+    reps: '60 秒',
+    tips: ['活动脊柱', '呼吸配合'],
+    category: 'Full Body',
+    equipment: 'None',
+    targetMuscles: ['Spine', 'Core'],
+    rarity: 'Common',
+    demonstrationSteps: [
+      { step: '准备', instruction: '四足跪姿。', audioCue: '准备' },
+      { step: '猫式', instruction: '拱背收腹。', audioCue: '拱背' },
+      { step: '驼式', instruction: '塌腰抬头。', audioCue: '抬头' }
+    ]
   }
 ];
+
+export const WORKOUT_SETS: WorkoutSet[] = [
+  {
+    id: 'plan-a',
+    name: '计划 A：全身爆发力与跑步专项',
+    description: '侧重下肢力量与爆发力，适合周一、周四、周六。',
+    difficulty: 'Intermediate',
+    category: 'Lower',
+    exercises: [
+      'burpees', 'bulgarian-split-squat-l', 'bulgarian-split-squat-r', 
+      'step-ups', 'squat-jumps', 'calf-raises', 'plank-crawl', 'mountain-climber'
+    ].map(id => MASTER_EXERCISE_LIBRARY.find(ex => ex.id === id)!)
+  },
+  {
+    id: 'plan-b',
+    name: '计划 B：挺拔体态与上肢增肌',
+    description: '侧重上肢与背部，改善圆肩体态，适合周二、周五。',
+    difficulty: 'Intermediate',
+    category: 'Upper',
+    exercises: [
+      'standard-pushups', 'dips', 'superman', 'inverted-row', 
+      'diamond-pushups', 'wall-w-stretch', 'dynamic-plank', 'leg-raises'
+    ].map(id => MASTER_EXERCISE_LIBRARY.find(ex => ex.id === id)!)
+  },
+  {
+    id: 'height-day',
+    name: '身高优化日',
+    description: '低强度拉伸与悬挂，促进骨骼生长，适合周三、周日。',
+    difficulty: 'Beginner',
+    category: 'Full Body',
+    exercises: MASTER_EXERCISE_LIBRARY.filter(ex => [
+      'dead-hang', 'downward-dog', 'cat-cow'
+    ])
+  }
+];
+
+const COMMON_WARMUP = MASTER_EXERCISE_LIBRARY.filter(ex => ['jumping-jacks', 'arm-circles', 'dynamic-side-stretch', 'high-knees', 'cat-cow'].includes(ex.id));
+const COMMON_COOLDOWN = MASTER_EXERCISE_LIBRARY.filter(ex => ['cat-cow', 'cobra-pose', 'downward-dog', 'dead-hang', 'quad-stretch'].includes(ex.id));
 
 export const WEEKLY_PLAN: DayPlan[] = [
   {
     day: '周一',
-    focus: '计划 A：全身爆发力与跑步专项',
+    focus: '计划 A：全身爆发力',
     isCircuit: true,
     warmup: COMMON_WARMUP,
     cooldown: COMMON_COOLDOWN,
-    exercises: [
-      {
-        id: 'burpees',
-        name: '波比跳 (Burpees)',
-        description: '1. 从站立姿势开始，下蹲并将双手放在地面。2. 双脚向后跳出成俯卧撑姿势。3. 做一个完整的俯卧撑（胸部触地）。4. 双脚跳回手部位置。5. 全力向上跳起，双手在头顶击掌。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['全身爆发力训练', '动作连贯', '保持呼吸节奏'],
-        category: 'Full Body',
-        imageUrl: 'https://picsum.photos/seed/burpees/400/300'
-      },
-      {
-        id: 'bulgarian-left',
-        name: '保加利亚剪蹲 (左)',
-        description: '1. 背对椅子站立，左脚脚背平放在椅子面上。2. 右脚向前迈出一大步。3. 垂直下蹲，直到右大腿与地面平行，左膝盖接近地面。4. 发力推起回到起始位置。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['重心稍微前倾', '后膝轻轻触地', '保持平衡'],
-        category: 'Lower',
-        imageUrl: 'https://picsum.photos/seed/lunge-left/400/300'
-      },
-      {
-        id: 'bulgarian-right',
-        name: '保加利亚剪蹲 (右)',
-        description: '1. 背对椅子站立，右脚脚背平放在椅子面上。2. 左脚向前迈出一大步。3. 垂直下蹲，直到左大腿与地面平行，右膝盖接近地面。4. 发力推起回到起始位置。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['核心收紧', '膝盖不要内扣', '控制下降速度'],
-        category: 'Lower',
-        imageUrl: 'https://picsum.photos/seed/lunge-right/400/300'
-      },
-      {
-        id: 'step-ups',
-        name: '椅子登阶 (Step-ups)',
-        description: '1. 面对稳固的椅子站立。2. 将一只脚全脚掌踩在椅子中心。3. 另一只脚发力蹬地，全身站直在椅子上。4. 控制速度，一只脚接一只脚退回地面。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['全脚掌踩稳', '利用大腿发力', '换腿进行'],
-        category: 'Lower',
-        imageUrl: 'https://picsum.photos/seed/step-ups/400/300'
-      },
-      {
-        id: 'squat-jumps',
-        name: '深蹲跳 (Squat Jumps)',
-        description: '1. 双脚与肩同宽站立。2. 下蹲至大腿与地面平行。3. 核心收紧，全力向上爆发跳起。4. 落地时脚尖先着地，顺势下蹲缓冲。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['落地要轻盈缓冲', '爆发力输出', '挺胸抬头'],
-        category: 'Lower',
-        imageUrl: 'https://picsum.photos/seed/squat-jumps/400/300'
-      },
-      {
-        id: 'calf-raises',
-        name: '单腿提踵 (Calf Raises)',
-        description: '1. 单脚站立在台阶边缘，脚后跟悬空。2. 另一只脚勾在站立腿后方。3. 尽力抬高脚后跟，感受小腿收缩。4. 缓慢下放脚后跟至低于台阶平面。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['增强踝关节稳定性', '最高点稍作停留', '换腿进行'],
-        category: 'Running',
-        imageUrl: 'https://picsum.photos/seed/calf-raises/400/300'
-      },
-      {
-        id: 'plank-crawl',
-        name: '平板支撑爬行',
-        description: '1. 进入标准平板支撑姿势（手肘支撑）。2. 核心极度收紧，像壁虎一样交替移动手肘和脚尖向前。3. 保持臀部不晃动，爬行 3-5 步后向后退回。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['核心/肩膀稳定性', '身体保持水平', '动作要稳'],
-        category: 'Core',
-        imageUrl: 'https://picsum.photos/seed/plank-crawl/400/300'
-      },
-      {
-        id: 'mountain-climber',
-        name: '登山者 (Mountain Climber)',
-        description: '1. 俯撑姿势，双手在肩部正下方。2. 核心收紧，背部平直。3. 快速交替将膝盖向胸部提拉，像在陡坡上快速奔跑。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['保持腹部收紧', '高频率交替', '背部平直'],
-        category: 'Core',
-        imageUrl: 'https://picsum.photos/seed/mountain-climber/400/300'
-      }
-    ]
+    exercises: WORKOUT_SETS.find(s => s.id === 'plan-a')!.exercises
   },
   {
     day: '周二',
-    focus: '计划 B：挺拔体态与上肢增肌',
+    focus: '计划 B：挺拔体态',
     isCircuit: true,
     warmup: COMMON_WARMUP,
     cooldown: COMMON_COOLDOWN,
-    exercises: [
-      {
-        id: 'pushups',
-        name: '标准俯卧撑',
-        description: '1. 双手略宽于肩放在地面。2. 身体从头到脚呈一直线。3. 下压至胸部距离地面 5 厘米。4. 呼气推起。力竭时可换成膝盖着地的跪姿。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['核心收紧', '手肘不要过度外展', '挺胸抬头'],
-        category: 'Upper Push',
-        imageUrl: 'https://picsum.photos/seed/pushups/400/300'
-      },
-      {
-        id: 'dips',
-        name: '椅子臂屈伸 (Dips)',
-        description: '1. 双手撑在椅子边缘，指尖朝前。2. 双腿向前伸直，脚跟着地。3. 弯曲手臂下沉臀部，直到上臂与地面平行。4. 用三头肌力量撑起。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['锻炼肱三头肌', '背部贴近椅子', '手臂垂直上下'],
-        category: 'Upper Push',
-        imageUrl: 'https://picsum.photos/seed/dips/400/300'
-      },
-      {
-        id: 'superman',
-        name: '超人式 (Superman)',
-        description: '1. 俯卧在地面，手臂向前伸直。2. 同时抬起手臂、胸部和双腿，仅腹部着地。3. 感受后背肌肉强烈收缩，坚持 2 秒。4. 缓慢放下。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['像超人飞行一样', '感受后背发力', '动作缓慢受控'],
-        category: 'Upper Pull',
-        imageUrl: 'https://picsum.photos/seed/superman/400/300'
-      },
-      {
-        id: 'inverted-row',
-        name: '桌下划船 (Inverted Row)',
-        description: '1. 钻到结实的桌子下方。2. 双手抓牢桌子边缘，身体笔直。3. 发力将胸部拉向桌面。4. 缓慢有控制地放下。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['确保桌子稳固', '肩胛骨收紧', '身体保持笔直'],
-        category: 'Upper Pull',
-        imageUrl: 'https://picsum.photos/seed/row/400/300'
-      },
-      {
-        id: 'diamond-pushups',
-        name: '钻石俯卧撑',
-        description: '1. 双手放在胸口正下方，食指和拇指相触形成钻石形状。2. 身体呈直线。3. 下压至胸部触碰手背。4. 强力推起。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['高强度动作', '手肘贴近身体', '核心收紧'],
-        category: 'Upper Push',
-        imageUrl: 'https://picsum.photos/seed/diamond-pushups/400/300'
-      },
-      {
-        id: 'wall-w-stretch',
-        name: '靠墙 W 拉伸',
-        description: '1. 背靠墙站立，脚后跟、臀部、肩胛骨和后脑勺贴墙。2. 手臂弯曲成 W 形贴在墙上。3. 缓慢向上滑动手臂成 Y 形，全程保持手臂和手背贴墙。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['肩胛骨/姿态矫正', '手臂全程贴墙', '缓慢移动'],
-        category: 'Rest',
-        imageUrl: 'https://picsum.photos/seed/wall-stretch/400/300'
-      },
-      {
-        id: 'dynamic-plank',
-        name: '动态平板支撑',
-        description: '1. 从手肘支撑的平板支撑开始。2. 右手撑地，左手撑地，变成手掌支撑。3. 右肘下放，左肘下放，回到起始位置。4. 保持核心极度稳定。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['核心/手臂力量', '身体尽量不晃动', '交替领先手'],
-        category: 'Core',
-        imageUrl: 'https://picsum.photos/seed/dynamic-plank/400/300'
-      },
-      {
-        id: 'leg-raises',
-        name: '仰卧举腿',
-        description: '1. 平躺，双手放在臀部两侧。2. 双腿并拢伸直，抬起至与地面垂直。3. 缓慢下放双腿，直到脚后跟距离地面 5 厘米。4. 再次抬起。',
-        sets: '3 轮',
-        reps: '45 秒',
-        tips: ['控制核心', '腰部贴紧地面', '慢速下放'],
-        category: 'Core',
-        imageUrl: 'https://picsum.photos/seed/leg-raises/400/300'
-      }
-    ]
+    exercises: WORKOUT_SETS.find(s => s.id === 'plan-b')!.exercises
   },
   {
     day: '周三',
-    focus: '身高优化日 (Low Impact)',
+    focus: '身高优化日',
     isRest: true,
     warmup: COMMON_WARMUP,
     cooldown: COMMON_COOLDOWN,
-    exercises: [
-      {
-        id: 'dead-hang',
-        name: '悬挂 (Dead Hang)',
-        description: '找到能抓的地方挂着，放松脊柱。',
-        sets: '5 组',
-        reps: '30 秒',
-        tips: ['彻底放松身体', '感受脊柱拉伸'],
-        category: 'Rest',
-        imageUrl: 'https://picsum.photos/seed/dead-hang/400/300'
-      },
-      {
-        id: 'yoga',
-        name: '瑜伽动作 (下犬式/猫驼式)',
-        description: '通过瑜伽动作拉伸全身。',
-        sets: '1 组',
-        reps: '10 分钟',
-        tips: ['配合深呼吸', '动作柔和'],
-        category: 'Rest',
-        imageUrl: 'https://picsum.photos/seed/yoga/400/300'
-      },
-      {
-        id: 'easy-run',
-        name: '轻松跑',
-        description: '20 分钟轻松慢跑。',
-        sets: '1 组',
-        reps: '20 分钟',
-        tips: ['放松心情', '保持节奏'],
-        category: 'Running',
-        imageUrl: 'https://picsum.photos/seed/run/400/300'
-      }
-    ]
+    exercises: WORKOUT_SETS.find(s => s.id === 'height-day')!.exercises
   },
   {
     day: '周四',
-    focus: '计划 A：全身爆发力与跑步专项',
+    focus: '计划 A：全身爆发力',
     isCircuit: true,
     warmup: COMMON_WARMUP,
     cooldown: COMMON_COOLDOWN,
-    exercises: []
+    exercises: WORKOUT_SETS.find(s => s.id === 'plan-a')!.exercises
   },
   {
     day: '周五',
-    focus: '计划 B：挺拔体态与上肢增肌',
+    focus: '计划 B：挺拔体态',
     isCircuit: true,
     warmup: COMMON_WARMUP,
     cooldown: COMMON_COOLDOWN,
-    exercises: []
+    exercises: WORKOUT_SETS.find(s => s.id === 'plan-b')!.exercises
   },
   {
     day: '周六',
-    focus: '计划 A：全身爆发力与跑步专项',
+    focus: '计划 A：全身爆发力',
     isCircuit: true,
     warmup: COMMON_WARMUP,
     cooldown: COMMON_COOLDOWN,
-    exercises: []
+    exercises: WORKOUT_SETS.find(s => s.id === 'plan-a')!.exercises
   },
   {
     day: '周日',
-    focus: '身高优化日 (Low Impact)',
+    focus: '身高优化日',
     isRest: true,
     warmup: COMMON_WARMUP,
     cooldown: COMMON_COOLDOWN,
-    exercises: []
+    exercises: WORKOUT_SETS.find(s => s.id === 'height-day')!.exercises
   }
 ];
 
-// Populate the repeated days
-WEEKLY_PLAN[3].exercises = [...WEEKLY_PLAN[0].exercises];
-WEEKLY_PLAN[4].exercises = [...WEEKLY_PLAN[1].exercises];
-WEEKLY_PLAN[5].exercises = [...WEEKLY_PLAN[0].exercises];
-WEEKLY_PLAN[6].exercises = [...WEEKLY_PLAN[2].exercises];
-
 export const NUTRITION_TIPS: NutritionTip[] = [
   {
-    title: '训练后营养公式',
-    content: '训练后 30 分钟内：1 个香蕉/2 片面包 + 2 个鸡蛋。',
-    icon: 'Zap'
+    title: "训练后“黄金 30 分钟”",
+    content: "训练结束后立即补充：1 根香蕉 + 1 杯牛奶/蛋白粉。碳水触发胰岛素分泌，帮助蛋白质进入肌肉。",
+    icon: "zap"
   },
   {
-    title: '钙质补给',
-    content: '每天建议 1200mg 钙。除了牛奶，多吃菠菜、西兰花等绿叶蔬菜。',
-    icon: 'Sun'
+    title: "钙质是身高的地基",
+    content: "每天保证 500ml 牛奶或 200g 豆腐。钙质不仅强健骨骼，还能提高神经传导效率。",
+    icon: "info"
   },
   {
-    title: '不喝含糖饮料',
-    content: '糖分会抑制生长激素分泌。坚持喝白开水或纯牛奶。',
-    icon: 'Ban'
-  },
-  {
-    title: '渐进性超负荷',
-    content: '记录次数。如果这周做了 20 个，下周尝试 22 个。',
-    icon: 'Flame'
+    title: "拒绝“生长小偷”",
+    content: "严格戒掉含糖饮料（可乐、奶茶）。高糖会抑制生长激素的分泌，让你白练了。",
+    icon: "x"
   }
 ];

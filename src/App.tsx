@@ -17,12 +17,24 @@ import {
   Play,
   Pause,
   RotateCcw,
-  SkipForward,
+  Search,
+  Library,
+  Target,
+  Wrench,
+  ChevronDown,
+  Filter,
   Volume2,
-  VolumeX
+  VolumeX,
+  SkipForward,
+  Clock,
+  Trophy,
+  ChevronLeft,
+  X,
+  LayoutGrid,
+  AlertCircle
 } from 'lucide-react';
-import { WEEKLY_PLAN, NUTRITION_TIPS } from './constants';
-import { DayPlan, Exercise } from './types';
+import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS, RARITY_COLORS } from './constants';
+import { DayPlan, Exercise, WorkoutSet } from './types';
 import { StickmanAnimation } from './components/StickmanAnimation';
 
 const IconMap: Record<string, React.ReactNode> = {
@@ -35,9 +47,13 @@ const IconMap: Record<string, React.ReactNode> = {
 type WorkoutState = 'idle' | 'warmup' | 'exercise' | 'rest' | 'round_rest' | 'cooldown' | 'finished';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'today' | 'schedule' | 'nutrition'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'schedule' | 'library' | 'nutrition'>('today');
   const [selectedDay, setSelectedDay] = useState<DayPlan | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
+  const [selectedSet, setSelectedSet] = useState<WorkoutSet | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterCategory, setFilterCategory] = useState<string>('All');
+  const [filterRarity, setFilterRarity] = useState<string>('All');
 
   // Workout Timer State
   const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
@@ -83,7 +99,30 @@ export default function App() {
     return match ? parseInt(match[1], 10) : 45;
   };
 
+  // Audio Beep
+  const playBeep = () => {
+    if (isMuted) return;
+    try {
+      const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.1);
+    } catch (e) {
+      console.error('Audio error:', e);
+    }
+  };
+
   const handlePhaseTransition = () => {
+    playBeep();
     if (workoutState === 'warmup') {
       const isLastWarmup = currentExerciseIndex === (todayPlan.warmup?.length || 0) - 1;
       if (isLastWarmup) {
@@ -213,46 +252,73 @@ export default function App() {
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 1.1 }}
-              className="w-full space-y-8"
+              className="w-full space-y-12"
             >
               {(workoutState === 'exercise' || workoutState === 'warmup' || workoutState === 'cooldown') && currentEx ? (
                 <>
-                  <div className="w-64 h-64 mx-auto bg-zinc-900 rounded-3xl flex items-center justify-center border-4 border-zinc-800 relative overflow-hidden group">
-                    {currentEx.imageUrl ? (
-                      <img 
-                        src={currentEx.imageUrl} 
-                        alt={currentEx.name}
-                        className="w-full h-full object-cover opacity-60 group-hover:opacity-80 transition-opacity"
-                        referrerPolicy="no-referrer"
-                      />
-                    ) : (
-                      <StickmanAnimation exerciseId={currentEx.id} className="w-32 h-32 text-emerald-400" />
-                    )}
+                  <div className="w-72 h-72 mx-auto bg-zinc-900 rounded-[3rem] flex items-center justify-center border-8 border-zinc-800 relative overflow-hidden group shadow-2xl shadow-emerald-500/10">
+                    <StickmanAnimation exerciseId={currentEx.id} rarity={currentEx.rarity} className="w-48 h-48" />
+                    
+                    <div className="absolute top-6 right-6">
+                      <div 
+                        className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border"
+                        style={{ 
+                          backgroundColor: `${RARITY_COLORS[currentEx.rarity || 'Common']}20`,
+                          borderColor: RARITY_COLORS[currentEx.rarity || 'Common'],
+                          color: RARITY_COLORS[currentEx.rarity || 'Common']
+                        }}
+                      >
+                        {currentEx.rarity || 'Common'}
+                      </div>
+                    </div>
                     
                     <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 100 100">
                       <circle 
-                        cx="50" cy="50" r="48" 
-                        fill="none" stroke="currentColor" strokeWidth="2" 
+                        cx="50" cy="50" r="46" 
+                        fill="none" stroke="currentColor" strokeWidth="4" 
                         className="text-zinc-800/50" 
                       />
                       <motion.circle 
-                        cx="50" cy="50" r="48" 
-                        fill="none" stroke="currentColor" strokeWidth="2" 
-                        strokeDasharray="301.59"
-                        animate={{ strokeDashoffset: 301.59 * (1 - timeLeft / getSeconds(currentEx.reps)) }}
+                        cx="50" cy="50" r="46" 
+                        fill="none" stroke="currentColor" strokeWidth="4" 
+                        strokeDasharray="289.02"
+                        animate={{ strokeDashoffset: 289.02 * (1 - timeLeft / getSeconds(currentEx.reps)) }}
                         className="text-emerald-500" 
+                        strokeLinecap="round"
                       />
                     </svg>
                     
-                    <div className="absolute bottom-4 right-4 bg-black/60 backdrop-blur-md px-3 py-1 rounded-full border border-white/10">
-                      <span className="text-2xl font-display font-black tabular-nums">{timeLeft}</span>
+                    <div className="absolute bottom-6 right-6 bg-black/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 shadow-xl">
+                      <span className="text-4xl font-display font-black tabular-nums tracking-tighter">{timeLeft}</span>
                     </div>
                   </div>
-                  <div>
-                    <h2 className="text-3xl font-display font-bold mb-2">{currentEx.name}</h2>
-                    <p className="text-zinc-400 text-sm max-w-xs mx-auto leading-relaxed">
-                      {currentEx.description.split('\n')[0]}
-                    </p>
+                  <div className="space-y-4">
+                    <h2 className="text-4xl font-display font-bold tracking-tight">{currentEx.name}</h2>
+                    <div className="flex flex-col gap-2">
+                      <p className="text-zinc-400 text-base max-w-xs mx-auto leading-relaxed">
+                        {currentEx.description.split('\n')[0]}
+                      </p>
+                      {currentEx.demonstrationSteps && (
+                        <div className="bg-white/5 p-4 rounded-2xl border border-white/10 text-left max-w-sm mx-auto space-y-3">
+                          <div>
+                            <p className="text-[10px] font-black text-emerald-400 uppercase tracking-widest mb-1 opacity-70">当前要领</p>
+                            <p className="text-sm text-zinc-100 font-medium leading-relaxed">
+                              {currentEx.demonstrationSteps[Math.floor((1 - timeLeft / getSeconds(currentEx.reps)) * currentEx.demonstrationSteps.length)]?.instruction || currentEx.tips[0]}
+                            </p>
+                          </div>
+                          {currentEx.demonstrationSteps[Math.floor((1 - timeLeft / getSeconds(currentEx.reps)) * currentEx.demonstrationSteps.length)]?.safetyTip && (
+                            <div className="pt-2 border-t border-white/5">
+                              <p className="text-[10px] font-black text-amber-400 uppercase tracking-widest mb-1 opacity-70 flex items-center gap-1">
+                                <AlertCircle className="w-2.5 h-2.5" /> 安全提示
+                              </p>
+                              <p className="text-xs text-zinc-400 italic">
+                                {currentEx.demonstrationSteps[Math.floor((1 - timeLeft / getSeconds(currentEx.reps)) * currentEx.demonstrationSteps.length)]?.safetyTip}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </>
               ) : workoutState === 'finished' ? (
@@ -286,19 +352,34 @@ export default function App() {
         </div>
 
         {/* Controls */}
-        <div className="p-12 flex items-center justify-center gap-8">
-          <button 
-            onClick={() => setIsPaused(!isPaused)}
-            className="w-20 h-20 bg-white text-black rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform"
-          >
-            {isPaused ? <Play className="w-8 h-8 fill-current" /> : <Pause className="w-8 h-8 fill-current" />}
-          </button>
-          <button 
-            onClick={skipPhase}
-            className="w-12 h-12 bg-zinc-800 text-white rounded-full flex items-center justify-center active:scale-90 transition-transform"
-          >
-            <SkipForward className="w-5 h-5" />
-          </button>
+        <div className="p-12 flex flex-col items-center justify-center gap-8">
+          <div className="flex items-center justify-center gap-8">
+            <button 
+              onClick={() => setIsPaused(!isPaused)}
+              className="w-20 h-20 bg-white text-black rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform"
+            >
+              {isPaused ? <Play className="w-8 h-8 fill-current" /> : <Pause className="w-8 h-8 fill-current" />}
+            </button>
+            <button 
+              onClick={skipPhase}
+              className="w-12 h-12 bg-zinc-800 text-white rounded-full flex items-center justify-center active:scale-90 transition-transform"
+            >
+              <SkipForward className="w-5 h-5" />
+            </button>
+          </div>
+          
+          <div className="w-full max-w-sm">
+            <iframe 
+              style={{ borderRadius: '12px' }} 
+              src="https://open.spotify.com/embed/playlist/65lHTVbYdKBfz7z8CbreWA?utm_source=generator&theme=0" 
+              width="100%" 
+              height="80" 
+              frameBorder="0" 
+              allowFullScreen 
+              allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+              loading="lazy"
+            ></iframe>
+          </div>
         </div>
       </motion.div>
     );
@@ -312,29 +393,25 @@ export default function App() {
     >
       <section className="bg-zinc-900 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden">
         <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-zinc-400 text-xs font-bold uppercase tracking-widest">今日训练重点</span>
-            {todayPlan.isCircuit && (
-              <span className="bg-amber-500 text-black px-1.5 py-0.5 rounded text-[10px] font-black uppercase">魔鬼循环</span>
-            )}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="bg-emerald-500 text-white text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-widest">
+              {todayPlan.isRest ? '休息日' : '训练日'}
+            </span>
+            <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">{todayPlan.day}</span>
           </div>
-          <h2 className="text-2xl font-display font-bold mb-4 leading-tight">{todayPlan.focus}</h2>
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-full text-sm">
-              <Calendar className="w-4 h-4" />
-              <span>{todayPlan.day}</span>
-            </div>
-            <div className="flex items-center gap-1.5 bg-white/10 px-3 py-1.5 rounded-full text-sm">
-              <Dumbbell className="w-4 h-4" />
-              <span>{todayPlan.exercises.length} 个动作</span>
-            </div>
-          </div>
-          
-          <motion.button
+          <h2 className="text-4xl font-display font-bold leading-tight mb-4">
+            {todayPlan.focus}
+          </h2>
+          <p className="text-zinc-400 text-sm leading-relaxed mb-6">
+            明白，我懂了！你现在的动力非常足，想要更有挑战性、密度更高的训练。
+            30 分钟内完成 7-8 个动作，采用<span className="text-white font-bold">“循环训练法”（Circuit Training）</span>：
+            每个动作连续做，中间只休息 15-20 秒，完成一轮后再休息 1-2 分钟。
+          </p>
+          <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={startWorkout}
-            className="mt-6 w-full bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-colors"
+            className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-colors"
           >
             <Play className="w-5 h-5 fill-current" />
             立即开始训练
@@ -384,14 +461,22 @@ export default function App() {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center overflow-hidden">
-                    {ex.imageUrl ? (
-                      <img src={ex.imageUrl} className="w-full h-full object-cover opacity-80" referrerPolicy="no-referrer" />
-                    ) : (
-                      <StickmanAnimation exerciseId={ex.id} className="w-8 h-8 text-zinc-400" />
-                    )}
+                    <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-8 h-8" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                      <span 
+                        className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
+                        style={{ 
+                          borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
+                          color: RARITY_COLORS[ex.rarity || 'Common'],
+                          backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
+                        }}
+                      >
+                        {ex.rarity || 'Common'}
+                      </span>
+                    </div>
                     <p className="text-sm text-zinc-500">{ex.reps}</p>
                   </div>
                 </div>
@@ -416,14 +501,22 @@ export default function App() {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center overflow-hidden">
-                    {ex.imageUrl ? (
-                      <img src={ex.imageUrl} className="w-full h-full object-cover opacity-80" referrerPolicy="no-referrer" />
-                    ) : (
-                      <StickmanAnimation exerciseId={ex.id} className="w-8 h-8 text-zinc-400" />
-                    )}
+                    <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-8 h-8" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                      <span 
+                        className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
+                        style={{ 
+                          borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
+                          color: RARITY_COLORS[ex.rarity || 'Common'],
+                          backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
+                        }}
+                      >
+                        {ex.rarity || 'Common'}
+                      </span>
+                    </div>
                     <p className="text-sm text-zinc-500">{ex.sets} × {ex.reps}</p>
                   </div>
                 </div>
@@ -448,14 +541,22 @@ export default function App() {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center overflow-hidden">
-                    {ex.imageUrl ? (
-                      <img src={ex.imageUrl} className="w-full h-full object-cover opacity-80" referrerPolicy="no-referrer" />
-                    ) : (
-                      <StickmanAnimation exerciseId={ex.id} className="w-8 h-8 text-zinc-400" />
-                    )}
+                    <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-8 h-8" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                      <span 
+                        className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
+                        style={{ 
+                          borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
+                          color: RARITY_COLORS[ex.rarity || 'Common'],
+                          backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
+                        }}
+                      >
+                        {ex.rarity || 'Common'}
+                      </span>
+                    </div>
                     <p className="text-sm text-zinc-500">{ex.reps}</p>
                   </div>
                 </div>
@@ -528,11 +629,23 @@ export default function App() {
                         {ex.imageUrl ? (
                           <img src={ex.imageUrl} className="w-full h-full object-cover opacity-60" referrerPolicy="no-referrer" />
                         ) : (
-                          <StickmanAnimation exerciseId={ex.id} className="w-6 h-6 text-zinc-300" />
+                          <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-6 h-6" />
                         )}
                       </div>
                       <div>
-                        <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                          <span 
+                            className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
+                            style={{ 
+                              borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
+                              color: RARITY_COLORS[ex.rarity || 'Common'],
+                              backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
+                            }}
+                          >
+                            {ex.rarity || 'Common'}
+                          </span>
+                        </div>
                         <p className="text-sm text-zinc-500">{ex.reps}</p>
                       </div>
                     </div>
@@ -553,14 +666,22 @@ export default function App() {
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-zinc-50 rounded-lg flex items-center justify-center overflow-hidden">
-                        {ex.imageUrl ? (
-                          <img src={ex.imageUrl} className="w-full h-full object-cover opacity-60" referrerPolicy="no-referrer" />
-                        ) : (
-                          <StickmanAnimation exerciseId={ex.id} className="w-6 h-6 text-zinc-300" />
-                        )}
+                        <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-6 h-6" />
                       </div>
                       <div>
-                        <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                          <span 
+                            className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
+                            style={{ 
+                              borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
+                              color: RARITY_COLORS[ex.rarity || 'Common'],
+                              backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
+                            }}
+                          >
+                            {ex.rarity || 'Common'}
+                          </span>
+                        </div>
                         <p className="text-sm text-zinc-500">{ex.sets} × {ex.reps}</p>
                       </div>
                     </div>
@@ -584,11 +705,23 @@ export default function App() {
                         {ex.imageUrl ? (
                           <img src={ex.imageUrl} className="w-full h-full object-cover opacity-60" referrerPolicy="no-referrer" />
                         ) : (
-                          <StickmanAnimation exerciseId={ex.id} className="w-6 h-6 text-zinc-300" />
+                          <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-6 h-6" />
                         )}
                       </div>
                       <div>
-                        <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                          <span 
+                            className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
+                            style={{ 
+                              borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
+                              color: RARITY_COLORS[ex.rarity || 'Common'],
+                              backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
+                            }}
+                          >
+                            {ex.rarity || 'Common'}
+                          </span>
+                        </div>
                         <p className="text-sm text-zinc-500">{ex.reps}</p>
                       </div>
                     </div>
@@ -605,40 +738,295 @@ export default function App() {
 
   const renderNutrition = () => (
     <motion.div 
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      className="space-y-6"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-6 pb-12"
     >
-      <section className="bg-emerald-600 text-white rounded-3xl p-6 shadow-xl">
-        <h2 className="text-2xl font-display font-bold mb-2">营养与生长建议</h2>
-        <p className="text-emerald-50 text-sm leading-relaxed">
-          14岁是身体发育的黄金期，营养补充与充足睡眠同等重要。
-        </p>
+      <section className="bg-emerald-500 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+        <div className="relative z-10">
+          <h2 className="text-3xl font-display font-bold mb-2">🥗 30 分钟“魔鬼训练”后的营养公式</h2>
+          <p className="text-emerald-100 text-sm leading-relaxed">
+            因为你的强度上来了，55kg 的体重必须摄入足够的建筑材料。
+          </p>
+        </div>
+        <Utensils className="absolute -right-4 -bottom-4 w-32 h-32 text-white/10" />
       </section>
 
       <div className="grid gap-4">
         {NUTRITION_TIPS.map((tip, idx) => (
-          <div key={idx} className="bg-white p-5 rounded-2xl border border-zinc-200 shadow-sm flex gap-4">
-            <div className="w-12 h-12 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
-              {IconMap[tip.icon] || <Info />}
+          <motion.div
+            key={tip.title}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: idx * 0.1 }}
+            className="bg-white p-6 rounded-3xl border border-zinc-200 shadow-sm flex gap-4"
+          >
+            <div className="w-12 h-12 bg-zinc-50 rounded-2xl flex items-center justify-center shrink-0">
+              {IconMap[tip.icon] || <Info className="w-5 h-5 text-zinc-400" />}
             </div>
             <div>
-              <h4 className="font-bold text-zinc-900">{tip.title}</h4>
-              <p className="text-sm text-zinc-600 mt-1 leading-relaxed">{tip.content}</p>
+              <h4 className="font-bold text-zinc-900 mb-1">{tip.title}</h4>
+              <p className="text-sm text-zinc-500 leading-relaxed">{tip.content}</p>
             </div>
-          </div>
+          </motion.div>
         ))}
       </div>
 
-      <section className="bg-zinc-900 text-white rounded-2xl p-5">
-        <div className="flex items-center gap-3 mb-3">
-          <Moon className="w-5 h-5 text-indigo-400" />
+      <section className="bg-zinc-900 text-white p-8 rounded-[2.5rem] shadow-xl">
+        <div className="flex items-center gap-3 mb-4">
+          <Moon className="w-6 h-6 text-indigo-400" />
           <h4 className="font-bold">睡眠是关键</h4>
         </div>
         <p className="text-zinc-400 text-sm leading-relaxed">
           生长激素主要在深层睡眠中分泌，建议每晚保证 <span className="text-white font-bold">9-10 小时</span> 睡眠。睡前 1 小时尽量不看电子产品。
         </p>
       </section>
+
+      <section className="bg-zinc-100 rounded-[2.5rem] p-6 border border-zinc-200">
+        <h4 className="text-sm font-bold text-zinc-900 mb-4 flex items-center gap-2">
+          <Volume2 className="w-4 h-4 text-emerald-500" /> 训练背景音乐
+        </h4>
+        <iframe 
+          style={{ borderRadius: '12px' }} 
+          src="https://open.spotify.com/embed/playlist/65lHTVbYdKBfz7z8CbreWA?utm_source=generator" 
+          width="100%" 
+          height="152" 
+          frameBorder="0" 
+          allowFullScreen 
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture" 
+          loading="lazy"
+        ></iframe>
+      </section>
+    </motion.div>
+  );
+
+  const renderLibrary = () => {
+    const filteredExercises = MASTER_EXERCISE_LIBRARY.filter(ex => {
+      const matchesSearch = ex.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                           ex.targetMuscles.some(m => m.toLowerCase().includes(searchQuery.toLowerCase()));
+      const matchesCategory = filterCategory === 'All' || ex.category === filterCategory;
+      const matchesRarity = filterRarity === 'All' || ex.rarity === filterRarity;
+      return matchesSearch && matchesCategory && matchesRarity;
+    }).sort((a, b) => {
+      const rarities = Object.keys(RARITY_COLORS);
+      return rarities.indexOf(b.rarity || 'Common') - rarities.indexOf(a.rarity || 'Common');
+    });
+
+    const categories = ['All', 'Lower', 'Upper Push', 'Upper Pull', 'Core', 'Full Body', 'Cardio'];
+    const rarities = ['All', ...Object.keys(RARITY_COLORS)];
+
+    return (
+      <motion.div 
+        initial={{ opacity: 0, x: -20 }}
+        animate={{ opacity: 1, x: 0 }}
+        className="space-y-6 pb-12"
+      >
+        <div className="space-y-4">
+          <div className="relative">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
+            <input 
+              type="text" 
+              placeholder="搜索动作或肌肉部位..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white border border-zinc-200 rounded-2xl py-4 pl-12 pr-4 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
+            />
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {categories.map(cat => (
+              <button
+                key={cat}
+                onClick={() => setFilterCategory(cat)}
+                className={`shrink-0 px-4 py-2 rounded-full text-xs font-bold transition-all ${
+                  filterCategory === cat 
+                    ? 'bg-zinc-900 text-white' 
+                    : 'bg-white text-zinc-500 border border-zinc-200'
+                }`}
+              >
+                {cat === 'All' ? '全部' : cat}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
+            {rarities.map(rar => (
+              <button
+                key={rar}
+                onClick={() => setFilterRarity(rar)}
+                className={`shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                  filterRarity === rar 
+                    ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg' 
+                    : 'bg-white text-zinc-400 border-zinc-200'
+                }`}
+                style={filterRarity === rar ? {} : { color: rar === 'All' ? undefined : RARITY_COLORS[rar as keyof typeof RARITY_COLORS] }}
+              >
+                {rar === 'All' ? '全部稀有度' : rar}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <section className="space-y-4">
+          <h3 className="text-lg font-display font-bold px-1 flex items-center gap-2">
+            <Library className="w-5 h-5 text-emerald-500" />
+            推荐训练集
+          </h3>
+          <div className="grid gap-4">
+            {WORKOUT_SETS.map(set => (
+              <motion.button
+                key={set.id}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => setSelectedSet(set)}
+                className="bg-white p-5 rounded-3xl border border-zinc-200 shadow-sm text-left group"
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h4 className="font-bold text-zinc-900 text-lg">{set.name}</h4>
+                    <p className="text-xs text-zinc-500 mt-1">{set.description}</p>
+                  </div>
+                  <span className={`text-[10px] font-black uppercase px-2 py-1 rounded ${
+                    set.difficulty === 'Beginner' ? 'bg-emerald-100 text-emerald-700' :
+                    set.difficulty === 'Intermediate' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700'
+                  }`}>
+                    {set.difficulty}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-zinc-400">
+                  <span className="flex items-center gap-1"><Dumbbell className="w-3 h-3" /> {set.exercises.length} 动作</span>
+                  <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {set.category}</span>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </section>
+
+        <section className="space-y-4">
+          <h3 className="text-lg font-display font-bold px-1 flex items-center gap-2">
+            <Dumbbell className="w-5 h-5 text-emerald-500" />
+            动作库 ({filteredExercises.length})
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            {filteredExercises.map(ex => (
+              <motion.button
+                key={ex.id}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setSelectedExercise(ex)}
+                className="bg-white rounded-3xl border border-zinc-200 overflow-hidden shadow-sm group"
+              >
+                <div className="aspect-square bg-zinc-100 relative overflow-hidden">
+                  <div className="w-full h-full flex items-center justify-center">
+                    <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-12 h-12" />
+                  </div>
+                  <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+                    <span className="bg-black/50 backdrop-blur-md text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded">
+                      {ex.category}
+                    </span>
+                    <span 
+                      className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border backdrop-blur-md"
+                      style={{ 
+                        borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
+                        color: RARITY_COLORS[ex.rarity || 'Common'],
+                        backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}20`
+                      }}
+                    >
+                      {ex.rarity || 'Common'}
+                    </span>
+                  </div>
+                </div>
+                <div className="p-3">
+                  <h4 className="font-bold text-zinc-900 text-sm truncate">{ex.name}</h4>
+                  <p className="text-[10px] text-zinc-400 mt-1 flex items-center gap-1">
+                    <Target className="w-2.5 h-2.5" /> {ex.targetMuscles.slice(0, 2).join(', ')}
+                  </p>
+                </div>
+              </motion.button>
+            ))}
+          </div>
+        </section>
+      </motion.div>
+    );
+  };
+
+  const renderSetDetail = (set: WorkoutSet) => (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className="fixed inset-0 z-50 bg-zinc-50 overflow-y-auto"
+    >
+      <div className="max-w-md mx-auto px-6 py-8">
+        <button 
+          onClick={() => setSelectedSet(null)}
+          className="mb-6 flex items-center gap-2 text-zinc-500 font-medium"
+        >
+          <ArrowLeft className="w-5 h-5" />
+          <span>返回库</span>
+        </button>
+
+        <div className="space-y-6">
+          <div className="bg-zinc-900 text-white p-8 rounded-3xl shadow-xl">
+            <span className="text-emerald-400 text-[10px] font-black uppercase tracking-widest">{set.category}</span>
+            <h2 className="text-3xl font-display font-bold mt-2">{set.name}</h2>
+            <p className="text-zinc-400 text-sm mt-2">{set.description}</p>
+            <div className="flex gap-4 mt-6">
+              <div className="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-bold">
+                {set.difficulty}
+              </div>
+              <div className="bg-white/10 px-3 py-1.5 rounded-xl text-xs font-bold">
+                {set.exercises.length} 个动作
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-3">
+            <h3 className="text-lg font-display font-bold px-1">包含动作</h3>
+            <div className="grid gap-3">
+              {set.exercises.map(ex => (
+                <button
+                  key={ex.id}
+                  onClick={() => setSelectedExercise(ex)}
+                  className="flex items-center justify-between bg-white p-4 rounded-2xl border border-zinc-200 shadow-sm text-left"
+                >
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-zinc-50 rounded-xl overflow-hidden flex items-center justify-center">
+                      <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-8 h-8" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-zinc-900">{ex.name}</h4>
+                        <span 
+                          className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
+                          style={{ 
+                            borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
+                            color: RARITY_COLORS[ex.rarity || 'Common'],
+                            backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
+                          }}
+                        >
+                          {ex.rarity || 'Common'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-zinc-500">{ex.sets} × {ex.reps}</p>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-5 h-5 text-zinc-300" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <button 
+            onClick={() => {
+              // In a real app, this would set the current workout
+              alert('已将此训练集设为当前计划');
+              setSelectedSet(null);
+            }}
+            className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-emerald-500/20"
+          >
+            开始此训练
+          </button>
+        </div>
+      </div>
     </motion.div>
   );
 
@@ -660,29 +1048,65 @@ export default function App() {
 
         <div className="space-y-8">
           <div className="aspect-video bg-zinc-900 rounded-3xl flex items-center justify-center relative overflow-hidden">
-            {ex.imageUrl ? (
-              <img 
-                src={ex.imageUrl} 
-                alt={ex.name}
-                className="w-full h-full object-cover"
-                referrerPolicy="no-referrer"
-              />
-            ) : (
-              <StickmanAnimation exerciseId={ex.id} className="w-32 h-32 text-emerald-400" />
-            )}
+            <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-32 h-32" />
+            <div className="absolute top-6 right-6">
+              <span 
+                className="text-[10px] px-3 py-1 rounded-full font-bold uppercase border bg-white/10 backdrop-blur-md"
+                style={{ 
+                  borderColor: RARITY_COLORS[ex.rarity || 'Common'],
+                  color: RARITY_COLORS[ex.rarity || 'Common']
+                }}
+              >
+                {ex.rarity || 'Common'}
+              </span>
+            </div>
           </div>
 
           <div>
             <h2 className="text-3xl font-display font-bold text-zinc-900">{ex.name}</h2>
-            <div className="flex gap-4 mt-3">
-              <div className="bg-zinc-100 px-3 py-1 rounded-lg text-sm font-medium text-zinc-600">
+            <div className="flex flex-wrap gap-2 mt-3">
+              <div className="bg-zinc-100 px-3 py-1 rounded-lg text-xs font-bold text-zinc-600">
                 {ex.sets}
               </div>
-              <div className="bg-zinc-100 px-3 py-1 rounded-lg text-sm font-medium text-zinc-600">
+              <div className="bg-zinc-100 px-3 py-1 rounded-lg text-xs font-bold text-zinc-600">
                 {ex.reps}
               </div>
+              <div className="bg-emerald-50 px-3 py-1 rounded-lg text-xs font-bold text-emerald-600 flex items-center gap-1">
+                <Wrench className="w-3 h-3" /> {ex.equipment}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2 mt-2">
+              {ex.targetMuscles.map(m => (
+                <span key={m} className="bg-zinc-100 px-2 py-0.5 rounded text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                  {m}
+                </span>
+              ))}
             </div>
           </div>
+
+          {ex.demonstrationSteps && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-display font-bold border-b border-zinc-100 pb-2">动作演示</h3>
+              <div className="space-y-4">
+                {ex.demonstrationSteps.map((step, i) => (
+                  <div key={i} className="bg-zinc-50 p-4 rounded-2xl border border-zinc-100">
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className="w-6 h-6 bg-zinc-900 text-white rounded-full flex items-center justify-center text-[10px] font-black">
+                        {i + 1}
+                      </span>
+                      <h4 className="font-bold text-sm text-zinc-900">{step.instruction}</h4>
+                    </div>
+                    {step.safetyTip && (
+                      <div className="flex gap-2 text-[10px] text-amber-600 font-medium bg-amber-50 p-2 rounded-lg">
+                        <Info className="w-3 h-3 shrink-0" />
+                        <span>安全提示: {step.safetyTip}</span>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-4">
             <h3 className="text-lg font-display font-bold border-b border-zinc-100 pb-2">动作描述</h3>
@@ -724,6 +1148,7 @@ export default function App() {
         <AnimatePresence mode="wait">
           {activeTab === 'today' && renderToday()}
           {activeTab === 'schedule' && renderSchedule()}
+          {activeTab === 'library' && renderLibrary()}
           {activeTab === 'nutrition' && renderNutrition()}
         </AnimatePresence>
       </main>
@@ -745,6 +1170,13 @@ export default function App() {
             <span className="text-[10px] font-bold uppercase">计划</span>
           </button>
           <button 
+            onClick={() => setActiveTab('library')}
+            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'library' ? 'text-zinc-900' : 'text-zinc-400'}`}
+          >
+            <Library className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase">库</span>
+          </button>
+          <button 
             onClick={() => setActiveTab('nutrition')}
             className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'nutrition' ? 'text-zinc-900' : 'text-zinc-400'}`}
           >
@@ -756,6 +1188,7 @@ export default function App() {
 
       <AnimatePresence>
         {selectedExercise && renderExerciseDetail(selectedExercise)}
+        {selectedSet && renderSetDetail(selectedSet)}
         {workoutState !== 'idle' && renderWorkoutOverlay()}
       </AnimatePresence>
     </div>
