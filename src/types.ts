@@ -1,5 +1,3 @@
-export type ExerciseRarity = 'Common' | 'Unusual' | 'Rare' | 'Epic' | 'Legendary' | 'Mythic' | 'Ultra' | 'Super';
-
 export interface Exercise {
   id: string;
   name: string;
@@ -10,7 +8,6 @@ export interface Exercise {
   category: 'Lower' | 'Upper Push' | 'Upper Pull' | 'Core' | 'Full Body' | 'Running' | 'Rest' | 'Warmup' | 'Cooldown' | 'Cardio';
   equipment: 'None' | 'Chair' | 'Wall' | 'Towel' | 'Water Bottle' | 'Table' | 'Bar' | 'Bench';
   targetMuscles: string[];
-  rarity?: ExerciseRarity;
   demonstrationSteps?: {
     step: string;
     instruction: string;

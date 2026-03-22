@@ -31,11 +31,11 @@ import {
   ChevronLeft,
   X,
   LayoutGrid,
-  AlertCircle
+  AlertCircle,
+  Activity
 } from 'lucide-react';
-import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS, RARITY_COLORS } from './constants';
+import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS } from './constants';
 import { DayPlan, Exercise, WorkoutSet } from './types';
-import { StickmanAnimation } from './components/StickmanAnimation';
 
 const IconMap: Record<string, React.ReactNode> = {
   Egg: <Egg className="w-5 h-5" />,
@@ -53,7 +53,6 @@ export default function App() {
   const [selectedSet, setSelectedSet] = useState<WorkoutSet | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('All');
-  const [filterRarity, setFilterRarity] = useState<string>('All');
 
   // Workout Timer State
   const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
@@ -257,20 +256,7 @@ export default function App() {
               {(workoutState === 'exercise' || workoutState === 'warmup' || workoutState === 'cooldown') && currentEx ? (
                 <>
                   <div className="w-72 h-72 mx-auto bg-zinc-900 rounded-[3rem] flex items-center justify-center border-8 border-zinc-800 relative overflow-hidden group shadow-2xl shadow-emerald-500/10">
-                    <StickmanAnimation exerciseId={currentEx.id} rarity={currentEx.rarity} className="w-48 h-48" />
-                    
-                    <div className="absolute top-6 right-6">
-                      <div 
-                        className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest border"
-                        style={{ 
-                          backgroundColor: `${RARITY_COLORS[currentEx.rarity || 'Common']}20`,
-                          borderColor: RARITY_COLORS[currentEx.rarity || 'Common'],
-                          color: RARITY_COLORS[currentEx.rarity || 'Common']
-                        }}
-                      >
-                        {currentEx.rarity || 'Common'}
-                      </div>
-                    </div>
+                    <Dumbbell className="w-32 h-32 text-emerald-500 opacity-20" />
                     
                     <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 100 100">
                       <circle 
@@ -288,8 +274,8 @@ export default function App() {
                       />
                     </svg>
                     
-                    <div className="absolute bottom-6 right-6 bg-black/80 backdrop-blur-md px-4 py-2 rounded-2xl border border-white/10 shadow-xl">
-                      <span className="text-4xl font-display font-black tabular-nums tracking-tighter">{timeLeft}</span>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-7xl font-display font-black tabular-nums tracking-tighter text-white">{timeLeft}</span>
                     </div>
                   </div>
                   <div className="space-y-4">
@@ -461,22 +447,10 @@ export default function App() {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center overflow-hidden">
-                    <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-8 h-8" />
+                    <Activity className="w-6 h-6 text-zinc-400" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                      <span 
-                        className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
-                        style={{ 
-                          borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
-                          color: RARITY_COLORS[ex.rarity || 'Common'],
-                          backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
-                        }}
-                      >
-                        {ex.rarity || 'Common'}
-                      </span>
-                    </div>
+                    <h4 className="font-bold text-zinc-900">{ex.name}</h4>
                     <p className="text-sm text-zinc-500">{ex.reps}</p>
                   </div>
                 </div>
@@ -501,22 +475,10 @@ export default function App() {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center overflow-hidden">
-                    <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-8 h-8" />
+                    <Activity className="w-6 h-6 text-zinc-400" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                      <span 
-                        className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
-                        style={{ 
-                          borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
-                          color: RARITY_COLORS[ex.rarity || 'Common'],
-                          backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
-                        }}
-                      >
-                        {ex.rarity || 'Common'}
-                      </span>
-                    </div>
+                    <h4 className="font-bold text-zinc-900">{ex.name}</h4>
                     <p className="text-sm text-zinc-500">{ex.sets} × {ex.reps}</p>
                   </div>
                 </div>
@@ -541,22 +503,10 @@ export default function App() {
               >
                 <div className="flex items-center gap-4">
                   <div className="w-12 h-12 bg-zinc-100 rounded-xl flex items-center justify-center overflow-hidden">
-                    <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-8 h-8" />
+                    <Activity className="w-6 h-6 text-zinc-400" />
                   </div>
                   <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                      <span 
-                        className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
-                        style={{ 
-                          borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
-                          color: RARITY_COLORS[ex.rarity || 'Common'],
-                          backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
-                        }}
-                      >
-                        {ex.rarity || 'Common'}
-                      </span>
-                    </div>
+                    <h4 className="font-bold text-zinc-900">{ex.name}</h4>
                     <p className="text-sm text-zinc-500">{ex.reps}</p>
                   </div>
                 </div>
@@ -629,23 +579,11 @@ export default function App() {
                         {ex.imageUrl ? (
                           <img src={ex.imageUrl} className="w-full h-full object-cover opacity-60" referrerPolicy="no-referrer" />
                         ) : (
-                          <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-6 h-6" />
+                          <Activity className="w-5 h-5 text-zinc-300" />
                         )}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                          <span 
-                            className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
-                            style={{ 
-                              borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
-                              color: RARITY_COLORS[ex.rarity || 'Common'],
-                              backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
-                            }}
-                          >
-                            {ex.rarity || 'Common'}
-                          </span>
-                        </div>
+                        <h4 className="font-bold text-zinc-900">{ex.name}</h4>
                         <p className="text-sm text-zinc-500">{ex.reps}</p>
                       </div>
                     </div>
@@ -666,22 +604,10 @@ export default function App() {
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-10 h-10 bg-zinc-50 rounded-lg flex items-center justify-center overflow-hidden">
-                        <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-6 h-6" />
+                        <Activity className="w-5 h-5 text-zinc-300" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                          <span 
-                            className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
-                            style={{ 
-                              borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
-                              color: RARITY_COLORS[ex.rarity || 'Common'],
-                              backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
-                            }}
-                          >
-                            {ex.rarity || 'Common'}
-                          </span>
-                        </div>
+                        <h4 className="font-bold text-zinc-900">{ex.name}</h4>
                         <p className="text-sm text-zinc-500">{ex.sets} × {ex.reps}</p>
                       </div>
                     </div>
@@ -705,23 +631,11 @@ export default function App() {
                         {ex.imageUrl ? (
                           <img src={ex.imageUrl} className="w-full h-full object-cover opacity-60" referrerPolicy="no-referrer" />
                         ) : (
-                          <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-6 h-6" />
+                          <Activity className="w-5 h-5 text-zinc-300" />
                         )}
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                          <span 
-                            className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
-                            style={{ 
-                              borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
-                              color: RARITY_COLORS[ex.rarity || 'Common'],
-                              backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
-                            }}
-                          >
-                            {ex.rarity || 'Common'}
-                          </span>
-                        </div>
+                        <h4 className="font-bold text-zinc-900">{ex.name}</h4>
                         <p className="text-sm text-zinc-500">{ex.reps}</p>
                       </div>
                     </div>
@@ -805,15 +719,10 @@ export default function App() {
       const matchesSearch = ex.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
                            ex.targetMuscles.some(m => m.toLowerCase().includes(searchQuery.toLowerCase()));
       const matchesCategory = filterCategory === 'All' || ex.category === filterCategory;
-      const matchesRarity = filterRarity === 'All' || ex.rarity === filterRarity;
-      return matchesSearch && matchesCategory && matchesRarity;
-    }).sort((a, b) => {
-      const rarities = Object.keys(RARITY_COLORS);
-      return rarities.indexOf(b.rarity || 'Common') - rarities.indexOf(a.rarity || 'Common');
+      return matchesSearch && matchesCategory;
     });
 
     const categories = ['All', 'Lower', 'Upper Push', 'Upper Pull', 'Core', 'Full Body', 'Cardio'];
-    const rarities = ['All', ...Object.keys(RARITY_COLORS)];
 
     return (
       <motion.div 
@@ -845,23 +754,6 @@ export default function App() {
                 }`}
               >
                 {cat === 'All' ? '全部' : cat}
-              </button>
-            ))}
-          </div>
-
-          <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
-            {rarities.map(rar => (
-              <button
-                key={rar}
-                onClick={() => setFilterRarity(rar)}
-                className={`shrink-0 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
-                  filterRarity === rar 
-                    ? 'bg-zinc-900 text-white border-zinc-900 shadow-lg' 
-                    : 'bg-white text-zinc-400 border-zinc-200'
-                }`}
-                style={filterRarity === rar ? {} : { color: rar === 'All' ? undefined : RARITY_COLORS[rar as keyof typeof RARITY_COLORS] }}
-              >
-                {rar === 'All' ? '全部稀有度' : rar}
               </button>
             ))}
           </div>
@@ -916,21 +808,11 @@ export default function App() {
               >
                 <div className="aspect-square bg-zinc-100 relative overflow-hidden">
                   <div className="w-full h-full flex items-center justify-center">
-                    <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-12 h-12" />
+                    <Activity className="w-10 h-10 text-zinc-300" />
                   </div>
-                  <div className="absolute top-2 right-2 flex flex-col items-end gap-1">
+                  <div className="absolute top-2 right-2">
                     <span className="bg-black/50 backdrop-blur-md text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded">
                       {ex.category}
-                    </span>
-                    <span 
-                      className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border backdrop-blur-md"
-                      style={{ 
-                        borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
-                        color: RARITY_COLORS[ex.rarity || 'Common'],
-                        backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}20`
-                      }}
-                    >
-                      {ex.rarity || 'Common'}
                     </span>
                   </div>
                 </div>
@@ -990,22 +872,10 @@ export default function App() {
                 >
                   <div className="flex items-center gap-4">
                     <div className="w-12 h-12 bg-zinc-50 rounded-xl overflow-hidden flex items-center justify-center">
-                      <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-8 h-8" />
+                      <Activity className="w-6 h-6 text-zinc-300" />
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                        <span 
-                          className="text-[8px] px-1.5 py-0.5 rounded font-bold uppercase border bg-white/50"
-                          style={{ 
-                            borderColor: `${RARITY_COLORS[ex.rarity || 'Common']}40`,
-                            color: RARITY_COLORS[ex.rarity || 'Common'],
-                            backgroundColor: `${RARITY_COLORS[ex.rarity || 'Common']}10`
-                          }}
-                        >
-                          {ex.rarity || 'Common'}
-                        </span>
-                      </div>
+                      <h4 className="font-bold text-zinc-900">{ex.name}</h4>
                       <p className="text-xs text-zinc-500">{ex.sets} × {ex.reps}</p>
                     </div>
                   </div>
@@ -1048,18 +918,7 @@ export default function App() {
 
         <div className="space-y-8">
           <div className="aspect-video bg-zinc-900 rounded-3xl flex items-center justify-center relative overflow-hidden">
-            <StickmanAnimation exerciseId={ex.id} rarity={ex.rarity} className="w-32 h-32" />
-            <div className="absolute top-6 right-6">
-              <span 
-                className="text-[10px] px-3 py-1 rounded-full font-bold uppercase border bg-white/10 backdrop-blur-md"
-                style={{ 
-                  borderColor: RARITY_COLORS[ex.rarity || 'Common'],
-                  color: RARITY_COLORS[ex.rarity || 'Common']
-                }}
-              >
-                {ex.rarity || 'Common'}
-              </span>
-            </div>
+            <Activity className="w-20 h-20 text-emerald-500 opacity-20" />
           </div>
 
           <div>

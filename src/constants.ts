@@ -1,16 +1,5 @@
 import { DayPlan, NutritionTip, Exercise, WorkoutSet } from './types';
 
-export const RARITY_COLORS = {
-  Common: '#7eef6d',
-  Unusual: '#ffe65d',
-  Rare: '#4d52e3',
-  Epic: '#861fde',
-  Legendary: '#f1af1f',
-  Mythic: '#e13333',
-  Ultra: '#33e1e1',
-  Super: '#e133e1',
-};
-
 export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
   // WARMUP
   {
@@ -23,7 +12,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Warmup',
     equipment: 'None',
     targetMuscles: ['Full Body', 'Heart'],
-    rarity: 'Common',
     demonstrationSteps: [
       { step: '准备', instruction: '双脚并拢站立，手臂放在身体两侧。', audioCue: '准备开始' },
       { step: '跳跃', instruction: '跳起并将双腿分开，同时双手在头顶上方击掌。', audioCue: '向上跳' },
@@ -40,7 +28,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Warmup',
     equipment: 'None',
     targetMuscles: ['Shoulders'],
-    rarity: 'Common',
     demonstrationSteps: [
       { step: '准备', instruction: '双臂向两侧平举，掌心向下。', audioCue: '手臂平举' },
       { step: '环绕', instruction: '以肩部为轴，做顺时针或逆时针的小圆周运动。', audioCue: '开始环绕' }
@@ -56,7 +43,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Warmup',
     equipment: 'None',
     targetMuscles: ['Legs', 'Core'],
-    rarity: 'Unusual',
     demonstrationSteps: [
       { step: '准备', instruction: '双脚与肩同宽站立。', audioCue: '准备' },
       { step: '动作', instruction: '交替抬高膝盖至腰部高度，手臂配合摆动。', safetyTip: '保持背部挺直，不要后仰。', audioCue: '抬高膝盖' }
@@ -72,7 +58,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Warmup',
     equipment: 'None',
     targetMuscles: ['Obliques'],
-    rarity: 'Unusual',
     demonstrationSteps: [
       { step: '准备', instruction: '双脚宽距站立。', audioCue: '准备' },
       { step: '拉伸', instruction: '身体向侧方倾斜，手臂举过头顶。', audioCue: '向侧方拉伸' }
@@ -89,7 +74,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Lower',
     equipment: 'None',
     targetMuscles: ['Quads', 'Glutes', 'Hamstrings'],
-    rarity: 'Common',
     demonstrationSteps: [
       { step: '准备', instruction: '双脚与肩同宽站立，双手前平举或叉腰。', audioCue: '准备深蹲' },
       { step: '下蹲', instruction: '吸气，臀部向后坐，膝盖微曲，下蹲至大腿平行地面。', safetyTip: '膝盖不要内扣。', audioCue: '慢慢下蹲' },
@@ -106,7 +90,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Lower',
     equipment: 'None',
     targetMuscles: ['Quads', 'Glutes'],
-    rarity: 'Unusual',
     demonstrationSteps: [
       { step: '准备', instruction: '双脚并拢站立，双手叉腰。', audioCue: '准备箭步蹲' },
       { step: '迈步', instruction: '向前迈出一大步，重心垂直下移。', safetyTip: '前膝不要超过脚尖。', audioCue: '向前迈步' },
@@ -123,7 +106,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Full Body',
     equipment: 'None',
     targetMuscles: ['Full Body', 'Heart', 'Legs'],
-    rarity: 'Epic',
     demonstrationSteps: [
       { step: '下蹲', instruction: '从站立姿势下蹲，双手撑地。', audioCue: '蹲下' },
       { step: '后跳', instruction: '双脚向后跳成平板支撑。', audioCue: '向后跳' },
@@ -174,7 +156,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Lower',
     equipment: 'None',
     targetMuscles: ['Legs', 'Explosive Power'],
-    rarity: 'Super',
     demonstrationSteps: [
       { step: '蓄力', instruction: '微蹲，手臂向后摆。', audioCue: '蓄力' },
       { step: '起跳', instruction: '全力向上跳，手臂向上摆。', audioCue: '跳！' },
@@ -191,7 +172,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Lower',
     equipment: 'None',
     targetMuscles: ['Calves'],
-    rarity: 'Rare',
     demonstrationSteps: [
       { step: '准备', instruction: '单脚站立，手可以扶墙保持平衡。', audioCue: '准备' },
       { step: '提踵', instruction: '发力提起脚跟，直到最高点。', audioCue: '提踵' },
@@ -208,7 +188,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Core',
     equipment: 'None',
     targetMuscles: ['Core', 'Abs'],
-    rarity: 'Unusual',
     demonstrationSteps: [
       { step: '准备', instruction: '手肘撑地，双脚向后伸直。', audioCue: '撑起身体' },
       { step: '保持', instruction: '身体呈一直线，核心发力。', safetyTip: '不要塌腰。', audioCue: '坚持住' }
@@ -224,7 +203,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Lower',
     equipment: 'Chair',
     targetMuscles: ['Quads', 'Glutes'],
-    rarity: 'Ultra',
     demonstrationSteps: [
       { step: '准备', instruction: '面对椅子站立。', audioCue: '准备' },
       { step: '登阶', instruction: '一只脚踏上椅子并站直。', audioCue: '踏上' },
@@ -241,7 +219,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Lower',
     equipment: 'None',
     targetMuscles: ['Quads', 'Glutes', 'Explosive Power'],
-    rarity: 'Legendary',
     demonstrationSteps: [
       { step: '深蹲', instruction: '下蹲至大腿平行地面。', audioCue: '蹲下' },
       { step: '跳跃', instruction: '全力向上跳起。', audioCue: '跳！' },
@@ -258,7 +235,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Core',
     equipment: 'None',
     targetMuscles: ['Core', 'Shoulders'],
-    rarity: 'Mythic',
     demonstrationSteps: [
       { step: '准备', instruction: '呈平板支撑姿势。', audioCue: '准备' },
       { step: '爬行', instruction: '手脚配合向前小步爬行。', audioCue: '开始爬行' }
@@ -274,7 +250,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Upper Push',
     equipment: 'None',
     targetMuscles: ['Triceps', 'Chest'],
-    rarity: 'Mythic',
     demonstrationSteps: [
       { step: '准备', instruction: '双手呈钻石型撑地。', audioCue: '准备' },
       { step: '下压', instruction: '身体下降。', audioCue: '向下' },
@@ -291,7 +266,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Core',
     equipment: 'None',
     targetMuscles: ['Core', 'Heart'],
-    rarity: 'Rare',
     demonstrationSteps: [
       { step: '准备', instruction: '双手撑地呈平板支撑姿势。', audioCue: '准备' },
       { step: '动作', instruction: '交替快速向胸部提膝。', audioCue: '开始跑' }
@@ -308,7 +282,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Upper Push',
     equipment: 'None',
     targetMuscles: ['Chest', 'Triceps', 'Shoulders'],
-    rarity: 'Common',
     demonstrationSteps: [
       { step: '准备', instruction: '双手撑地，略宽于肩。', audioCue: '准备' },
       { step: '下压', instruction: '身体下降直到胸部接近地面。', safetyTip: '身体保持直线。', audioCue: '向下' },
@@ -325,7 +298,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Upper Push',
     equipment: 'None',
     targetMuscles: ['Shoulders', 'Triceps'],
-    rarity: 'Legendary',
     demonstrationSteps: [
       { step: '准备', instruction: '身体呈倒 V 型。', audioCue: '准备' },
       { step: '下压', instruction: '头向双手之间下压。', audioCue: '向下' },
@@ -342,7 +314,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Upper Push',
     equipment: 'Chair',
     targetMuscles: ['Triceps', 'Shoulders'],
-    rarity: 'Rare',
     demonstrationSteps: [
       { step: '准备', instruction: '双手撑在椅子边缘，双腿前伸。', audioCue: '准备' },
       { step: '下放', instruction: '屈肘下放臀部。', safetyTip: '臀部贴近椅子。', audioCue: '向下' },
@@ -359,7 +330,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Upper Pull',
     equipment: 'Table',
     targetMuscles: ['Back', 'Biceps'],
-    rarity: 'Epic',
     demonstrationSteps: [
       { step: '准备', instruction: '仰卧在桌下，双手抓稳桌边。', audioCue: '抓稳桌子' },
       { step: '拉起', instruction: '发力将胸部拉向桌边。', safetyTip: '肩胛骨收紧。', audioCue: '向上拉' },
@@ -376,7 +346,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Core',
     equipment: 'None',
     targetMuscles: ['Abs', 'Core'],
-    rarity: 'Unusual',
     demonstrationSteps: [
       { step: '准备', instruction: '仰卧，膝盖弯曲，双手放在耳侧或胸前。', audioCue: '准备' },
       { step: '起坐', instruction: '腹部发力抬起上半身。', safetyTip: '不要用手拉脖子。', audioCue: '坐起来' },
@@ -393,7 +362,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Upper Pull',
     equipment: 'None',
     targetMuscles: ['Lower Back', 'Glutes'],
-    rarity: 'Rare',
     demonstrationSteps: [
       { step: '准备', instruction: '俯卧，手臂向前伸直。', audioCue: '准备' },
       { step: '抬起', instruction: '同时抬起手臂和双腿。', audioCue: '起！' },
@@ -410,7 +378,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Upper Pull',
     equipment: 'Wall',
     targetMuscles: ['Shoulders', 'Upper Back'],
-    rarity: 'Unusual',
     demonstrationSteps: [
       { step: '准备', instruction: '背靠墙，手臂呈 W 型。', audioCue: '贴墙' },
       { step: '滑动', instruction: '手臂贴墙向上滑动成 Y 型。', audioCue: '向上滑' }
@@ -426,7 +393,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Core',
     equipment: 'None',
     targetMuscles: ['Core', 'Shoulders', 'Triceps'],
-    rarity: 'Rare',
     demonstrationSteps: [
       { step: '准备', instruction: '手肘撑地呈平板支撑。', audioCue: '准备' },
       { step: '切换', instruction: '单手撑起变手掌支撑，再换回手肘。', audioCue: '开始切换' }
@@ -442,7 +408,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Core',
     equipment: 'Chair',
     targetMuscles: ['Abs', 'Core'],
-    rarity: 'Rare',
     demonstrationSteps: [
       { step: '准备', instruction: '仰卧，双手抓稳支撑点。', audioCue: '准备' },
       { step: '举腿', instruction: '双腿伸直抬起至垂直。', audioCue: '抬腿' },
@@ -453,14 +418,13 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
   {
     id: 'dead-hang',
     name: '悬挂 (Dead Hang)',
-    description: '双手抓住单杠或稳固支撑点，全身放松自然下垂。',
+    description: '双手抓住单杠 or 稳固支撑点，全身放松自然下垂。',
     sets: '5 组',
     reps: '60 秒',
     tips: ['拉开脊柱间隙', '全身放松'],
     category: 'Full Body',
     equipment: 'Bar',
     targetMuscles: ['Back', 'Spine'],
-    rarity: 'Legendary',
     demonstrationSteps: [
       { step: '准备', instruction: '双手抓紧单杠。', audioCue: '抓紧' },
       { step: '悬挂', instruction: '全身放松下垂。', audioCue: '放松' }
@@ -476,7 +440,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Full Body',
     equipment: 'None',
     targetMuscles: ['Abs', 'Lower Back'],
-    rarity: 'Unusual',
     demonstrationSteps: [
       { step: '准备', instruction: '俯卧在地面。', audioCue: '准备' },
       { step: '撑起', instruction: '双手撑地抬起上半身。', audioCue: '向上撑起' }
@@ -492,7 +455,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Full Body',
     equipment: 'None',
     targetMuscles: ['Quads'],
-    rarity: 'Unusual',
     demonstrationSteps: [
       { step: '准备', instruction: '单脚站立。', audioCue: '准备' },
       { step: '拉伸', instruction: '向后抓脚踝，拉向臀部。', audioCue: '开始拉伸' }
@@ -508,7 +470,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Full Body',
     equipment: 'None',
     targetMuscles: ['Hamstrings', 'Back'],
-    rarity: 'Rare',
     demonstrationSteps: [
       { step: '准备', instruction: '手脚撑地。', audioCue: '准备' },
       { step: '顶起', instruction: '臀部向斜上方顶起成倒 V 型。', audioCue: '顶起臀部' }
@@ -524,7 +485,6 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
     category: 'Full Body',
     equipment: 'None',
     targetMuscles: ['Spine', 'Core'],
-    rarity: 'Common',
     demonstrationSteps: [
       { step: '准备', instruction: '四足跪姿。', audioCue: '准备' },
       { step: '猫式', instruction: '拱背收腹。', audioCue: '拱背' },
@@ -564,7 +524,7 @@ export const WORKOUT_SETS: WorkoutSet[] = [
     category: 'Full Body',
     exercises: MASTER_EXERCISE_LIBRARY.filter(ex => [
       'dead-hang', 'downward-dog', 'cat-cow'
-    ])
+    ].includes(ex.id))
   }
 ];
 
