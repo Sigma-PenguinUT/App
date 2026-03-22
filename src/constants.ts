@@ -528,8 +528,8 @@ export const WORKOUT_SETS: WorkoutSet[] = [
   }
 ];
 
-const COMMON_WARMUP = MASTER_EXERCISE_LIBRARY.filter(ex => ['jumping-jacks', 'arm-circles', 'dynamic-side-stretch', 'high-knees', 'cat-cow'].includes(ex.id));
-const COMMON_COOLDOWN = MASTER_EXERCISE_LIBRARY.filter(ex => ['cat-cow', 'cobra-pose', 'downward-dog', 'dead-hang', 'quad-stretch'].includes(ex.id));
+export const COMMON_WARMUP = MASTER_EXERCISE_LIBRARY.filter(ex => ['jumping-jacks', 'arm-circles', 'dynamic-side-stretch', 'high-knees', 'cat-cow'].includes(ex.id));
+export const COMMON_COOLDOWN = MASTER_EXERCISE_LIBRARY.filter(ex => ['cat-cow', 'cobra-pose', 'downward-dog', 'dead-hang', 'quad-stretch'].includes(ex.id));
 
 export const WEEKLY_PLAN: DayPlan[] = [
   {

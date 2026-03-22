@@ -34,7 +34,7 @@ import {
   AlertCircle,
   Activity
 } from 'lucide-react';
-import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS } from './constants';
+import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS, COMMON_WARMUP, COMMON_COOLDOWN } from './constants';
 import { DayPlan, Exercise, WorkoutSet } from './types';
 
 const IconMap: Record<string, React.ReactNode> = {
@@ -67,6 +67,13 @@ export default function App() {
   // Get current day of week (0-6, Monday = 0)
   const todayIndex = (new Date().getDay() + 6) % 7;
   const todayPlan = WEEKLY_PLAN[todayIndex];
+  const [currentPlan, setCurrentPlan] = useState<DayPlan>(todayPlan);
+
+  useEffect(() => {
+    if (workoutState === 'idle') {
+      setCurrentPlan(todayPlan);
+    }
+  }, [todayPlan, workoutState]);
 
   useEffect(() => {
     if (!selectedDay) setSelectedDay(todayPlan);
@@ -123,16 +130,16 @@ export default function App() {
   const handlePhaseTransition = () => {
     playBeep();
     if (workoutState === 'warmup') {
-      const isLastWarmup = currentExerciseIndex === (todayPlan.warmup?.length || 0) - 1;
+      const isLastWarmup = currentExerciseIndex === (currentPlan.warmup?.length || 0) - 1;
       if (isLastWarmup) {
         startExercise(0, 1);
       } else {
         const nextIndex = currentExerciseIndex + 1;
         setCurrentExerciseIndex(nextIndex);
-        setTimeLeft(getSeconds(todayPlan.warmup![nextIndex].reps));
+        setTimeLeft(getSeconds(currentPlan.warmup![nextIndex].reps));
       }
     } else if (workoutState === 'exercise') {
-      const isLastExercise = currentExerciseIndex === todayPlan.exercises.length - 1;
+      const isLastExercise = currentExerciseIndex === currentPlan.exercises.length - 1;
       if (isLastExercise) {
         if (currentRound < 3) {
           setWorkoutState('round_rest');
@@ -140,7 +147,7 @@ export default function App() {
         } else {
           setWorkoutState('cooldown');
           setCurrentExerciseIndex(0);
-          setTimeLeft(getSeconds(todayPlan.cooldown![0].reps));
+          setTimeLeft(getSeconds(currentPlan.cooldown![0].reps));
         }
       } else {
         setWorkoutState('rest');
@@ -151,13 +158,13 @@ export default function App() {
     } else if (workoutState === 'round_rest') {
       startExercise(0, currentRound + 1);
     } else if (workoutState === 'cooldown') {
-      const isLastCooldown = currentExerciseIndex === (todayPlan.cooldown?.length || 0) - 1;
+      const isLastCooldown = currentExerciseIndex === (currentPlan.cooldown?.length || 0) - 1;
       if (isLastCooldown) {
         setWorkoutState('finished');
       } else {
         const nextIndex = currentExerciseIndex + 1;
         setCurrentExerciseIndex(nextIndex);
-        setTimeLeft(getSeconds(todayPlan.cooldown![nextIndex].reps));
+        setTimeLeft(getSeconds(currentPlan.cooldown![nextIndex].reps));
       }
     }
   };
@@ -166,16 +173,20 @@ export default function App() {
     setCurrentExerciseIndex(index);
     setCurrentRound(round);
     setWorkoutState('exercise');
-    setTimeLeft(getSeconds(todayPlan.exercises[index].reps));
+    setTimeLeft(getSeconds(currentPlan.exercises[index].reps));
   };
 
-  const startWorkout = () => {
-    if (todayPlan.warmup && todayPlan.warmup.length > 0) {
+  const startWorkout = (plan: DayPlan = todayPlan) => {
+    setCurrentPlan(plan);
+    if (plan.warmup && plan.warmup.length > 0) {
       setWorkoutState('warmup');
       setCurrentExerciseIndex(0);
-      setTimeLeft(getSeconds(todayPlan.warmup[0].reps));
+      setTimeLeft(getSeconds(plan.warmup[0].reps));
     } else {
-      startExercise(0, 1);
+      setCurrentExerciseIndex(0);
+      setCurrentRound(1);
+      setWorkoutState('exercise');
+      setTimeLeft(getSeconds(plan.exercises[0].reps));
     }
     setCurrentRound(1);
     setIsPaused(false);
@@ -210,11 +221,11 @@ export default function App() {
   const renderWorkoutOverlay = () => {
     let currentEx: Exercise | undefined;
     if (workoutState === 'warmup') {
-      currentEx = todayPlan.warmup?.[currentExerciseIndex];
+      currentEx = currentPlan.warmup?.[currentExerciseIndex];
     } else if (workoutState === 'exercise') {
-      currentEx = todayPlan.exercises[currentExerciseIndex];
+      currentEx = currentPlan.exercises[currentExerciseIndex];
     } else if (workoutState === 'cooldown') {
-      currentEx = todayPlan.cooldown?.[currentExerciseIndex];
+      currentEx = currentPlan.cooldown?.[currentExerciseIndex];
     }
     
     return (
@@ -231,11 +242,11 @@ export default function App() {
           </button>
           <div className="text-center">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-              {workoutState === 'warmup' ? `热身阶段 - ${currentExerciseIndex + 1}/${todayPlan.warmup?.length}` : 
-               workoutState === 'exercise' ? `第 ${currentRound} 轮 - 动作 ${currentExerciseIndex + 1}/${todayPlan.exercises.length}` :
+              {workoutState === 'warmup' ? `热身阶段 - ${currentExerciseIndex + 1}/${currentPlan.warmup?.length}` : 
+               workoutState === 'exercise' ? `第 ${currentRound} 轮 - 动作 ${currentExerciseIndex + 1}/${currentPlan.exercises.length}` :
                workoutState === 'rest' ? '短暂休息' :
                workoutState === 'round_rest' ? '大组休息' :
-               workoutState === 'cooldown' ? `拉伸放松 - ${currentExerciseIndex + 1}/${todayPlan.cooldown?.length}` : '训练完成'}
+               workoutState === 'cooldown' ? `拉伸放松 - ${currentExerciseIndex + 1}/${currentPlan.cooldown?.length}` : '训练完成'}
             </p>
           </div>
           <button onClick={() => setIsMuted(!isMuted)} className="text-zinc-400">
@@ -328,7 +339,7 @@ export default function App() {
                   </div>
                   <p className="text-xl text-zinc-400 font-medium">
                     {workoutState === 'warmup' ? '准备热身...' : 
-                     workoutState === 'rest' ? `即将开始: ${todayPlan.exercises[currentExerciseIndex + 1]?.name}` :
+                     workoutState === 'rest' ? `即将开始: ${currentPlan.exercises[currentExerciseIndex + 1]?.name}` :
                      workoutState === 'round_rest' ? '深呼吸，准备下一轮' : '放松身体'}
                   </p>
                 </div>
@@ -396,7 +407,7 @@ export default function App() {
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
-            onClick={startWorkout}
+            onClick={() => startWorkout()}
             className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-colors"
           >
             <Play className="w-5 h-5 fill-current" />
@@ -887,8 +898,15 @@ export default function App() {
 
           <button 
             onClick={() => {
-              // In a real app, this would set the current workout
-              alert('已将此训练集设为当前计划');
+              const plan: DayPlan = {
+                day: 'Practice',
+                focus: set.name,
+                exercises: set.exercises,
+                warmup: COMMON_WARMUP,
+                cooldown: COMMON_COOLDOWN,
+                isCircuit: true
+              };
+              startWorkout(plan);
               setSelectedSet(null);
             }}
             className="w-full bg-emerald-500 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-emerald-500/20"
