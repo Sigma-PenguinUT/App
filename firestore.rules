@@ -1,0 +1,100 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: users
+// Document ID: {userId} (matches Firebase Auth UID)
+// Fields:
+//   - uid: string (required)
+//   - email: string (required, email format)
+//   - displayName: string (optional)
+//   - xp: number (required, >= 0)
+//   - streak: number (required, >= 0)
+//   - lastCheckIn: string (optional, ISO timestamp)
+//   - level: number (required, >= 1)
+//
+// Collection: users/{userId}/logs
+// Document ID: {logId}
+// Fields:
+//   - exerciseId: string (required)
+//   - date: string (required, ISO timestamp)
+//   - value: number (required, > 0)
+//   - type: string (required, enum: ['reps', 'seconds'])
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "transfor070@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'xp', 'streak', 'level']) &&
+             data.uid == request.auth.uid &&
+             isValidEmail(data.email) &&
+             data.xp is number && data.xp >= 0 &&
+             data.streak is number && data.streak >= 0 &&
+             data.level is number && data.level >= 1 &&
+             (!('lastCheckIn' in data) || isValidDateString(data.lastCheckIn));
+    }
+
+    function isValidLog(data) {
+      return data.keys().hasAll(['exerciseId', 'date', 'value', 'type']) &&
+             data.exerciseId is string && data.exerciseId.size() > 0 &&
+             isValidDateString(data.date) &&
+             data.value is number && data.value > 0 &&
+             data.type in ['reps', 'seconds'];
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if (isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role) || isAdmin();
+      
+      match /logs/{logId} {
+        allow read: if isOwner(userId) || isAdmin();
+        allow create: if isOwner(userId) && isValidLog(request.resource.data);
+        allow update: if isOwner(userId) && isValidLog(request.resource.data);
+        allow delete: if isOwner(userId) || isAdmin();
+      }
+    }
+
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -32,10 +32,18 @@ import {
   X,
   LayoutGrid,
   AlertCircle,
-  Activity
+  Activity,
+  User as UserIcon,
+  TrendingUp
 } from 'lucide-react';
 import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS, COMMON_WARMUP, COMMON_COOLDOWN } from './constants';
 import { DayPlan, Exercise, WorkoutSet } from './types';
+import Auth from './components/Auth';
+import Chatbot from './components/Chatbot';
+import PerformanceCharts from './components/PerformanceCharts';
+import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { User as FirebaseUser } from 'firebase/auth';
 
 const IconMap: Record<string, React.ReactNode> = {
   Egg: <Egg className="w-5 h-5" />,
@@ -47,20 +55,31 @@ const IconMap: Record<string, React.ReactNode> = {
 type WorkoutState = 'idle' | 'warmup' | 'exercise' | 'rest' | 'round_rest' | 'cooldown' | 'finished';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'today' | 'schedule' | 'library' | 'nutrition'>('today');
+  const [activeTab, setActiveTab] = useState<'today' | 'schedule' | 'library' | 'nutrition' | 'profile'>('today');
   const [selectedDay, setSelectedDay] = useState<DayPlan | null>(null);
   const [selectedExercise, setSelectedExercise] = useState<Exercise | null>(null);
   const [selectedSet, setSelectedSet] = useState<WorkoutSet | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('All');
 
+  // User & Progress State
+  const [user, setUser] = useState<FirebaseUser | null>(null);
+  const [profile, setProfile] = useState<{ xp: number; streak: number; level: number; lastCheckIn?: string } | null>(null);
+  const [userLogs, setUserLogs] = useState<any[]>([]);
+
   // Workout Timer State
   const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
   const [currentExerciseIndex, setCurrentExerciseIndex] = useState(0);
   const [currentRound, setCurrentRound] = useState(1);
+  const [totalRounds, setTotalRounds] = useState(3);
   const [timeLeft, setTimeLeft] = useState(0);
+  const [extraTime, setExtraTime] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
+  const [manualPerformance, setManualPerformance] = useState('');
+  const [pendingLog, setPendingLog] = useState<{ id: string; name: string; type: string; baseValue: number; extraValue: number } | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitFeedback, setSubmitFeedback] = useState<'success' | 'error' | null>(null);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -79,12 +98,73 @@ export default function App() {
     if (!selectedDay) setSelectedDay(todayPlan);
   }, [todayPlan]);
 
+  // Fetch User Profile & Logs
+  useEffect(() => {
+    if (user) {
+      const fetchProfile = async () => {
+        try {
+          const docRef = doc(db, 'users', user.uid);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            setProfile(docSnap.data() as any);
+          }
+          
+          const logsRef = collection(db, 'users', user.uid, 'logs');
+          const logsSnap = await getDocs(logsRef);
+          setUserLogs(logsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        } catch (err) {
+          console.error('Error fetching profile:', err);
+        }
+      };
+      fetchProfile();
+    } else {
+      setProfile(null);
+      setUserLogs([]);
+    }
+  }, [user]);
+
+  // Daily Check-in Logic
+  const handleCheckIn = async () => {
+    if (!user || !profile) return;
+    const today = new Date().toISOString().split('T')[0];
+    const lastCheckIn = profile.lastCheckIn?.split('T')[0];
+
+    if (lastCheckIn === today) return;
+
+    let newStreak = profile.streak;
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+    if (lastCheckIn === yesterdayStr) {
+      newStreak += 1;
+    } else {
+      newStreak = 1;
+    }
+
+    try {
+      const docRef = doc(db, 'users', user.uid);
+      await updateDoc(docRef, {
+        streak: newStreak,
+        xp: profile.xp + 50, // 50 XP for check-in
+        lastCheckIn: new Date().toISOString()
+      });
+      setProfile(prev => prev ? { ...prev, streak: newStreak, xp: prev.xp + 50, lastCheckIn: new Date().toISOString() } : null);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+    }
+  };
+
   // Timer Logic
   useEffect(() => {
     if (workoutState !== 'idle' && workoutState !== 'finished' && !isPaused) {
       timerRef.current = setInterval(() => {
         setTimeLeft((prev) => {
-          if (prev <= 1) {
+          if (prev <= 0) {
+            if (workoutState === 'exercise') {
+              setExtraTime(e => e + 1);
+              return 0;
+            }
             handlePhaseTransition();
             return 0;
           }
@@ -127,8 +207,22 @@ export default function App() {
     }
   };
 
-  const handlePhaseTransition = () => {
+  const handlePhaseTransition = async () => {
     playBeep();
+    
+    // Capture performance for the waiting part
+    if (workoutState === 'exercise') {
+      const currentEx = currentPlan.exercises[currentExerciseIndex];
+      setPendingLog({
+        id: currentEx.id,
+        name: currentEx.name,
+        type: currentEx.reps.includes('s') ? 'seconds' : 'reps',
+        baseValue: getSeconds(currentEx.reps),
+        extraValue: extraTime
+      });
+      setExtraTime(0);
+    }
+
     if (workoutState === 'warmup') {
       const isLastWarmup = currentExerciseIndex === (currentPlan.warmup?.length || 0) - 1;
       if (isLastWarmup) {
@@ -141,7 +235,7 @@ export default function App() {
     } else if (workoutState === 'exercise') {
       const isLastExercise = currentExerciseIndex === currentPlan.exercises.length - 1;
       if (isLastExercise) {
-        if (currentRound < 3) {
+        if (currentRound < totalRounds) {
           setWorkoutState('round_rest');
           setTimeLeft(90);
         } else {
@@ -161,11 +255,62 @@ export default function App() {
       const isLastCooldown = currentExerciseIndex === (currentPlan.cooldown?.length || 0) - 1;
       if (isLastCooldown) {
         setWorkoutState('finished');
+        handleWorkoutComplete();
       } else {
         const nextIndex = currentExerciseIndex + 1;
         setCurrentExerciseIndex(nextIndex);
         setTimeLeft(getSeconds(currentPlan.cooldown![nextIndex].reps));
       }
+    }
+  };
+
+  const submitSetPerformance = async () => {
+    if (!user) {
+      setSubmitFeedback('error');
+      setTimeout(() => setSubmitFeedback(null), 3000);
+      return;
+    }
+    if (!pendingLog) return;
+    
+    setIsSubmitting(true);
+    const finalValue = manualPerformance ? parseInt(manualPerformance) : (pendingLog.baseValue + pendingLog.extraValue);
+    
+    try {
+      await addDoc(collection(db, 'users', user.uid, 'logs'), {
+        exerciseId: pendingLog.id,
+        date: new Date().toISOString(),
+        value: finalValue,
+        type: pendingLog.type
+      });
+      setPendingLog(null);
+      setManualPerformance('');
+      setSubmitFeedback('success');
+      setTimeout(() => setSubmitFeedback(null), 3000);
+    } catch (err) {
+      console.error('Error logging performance:', err);
+      setSubmitFeedback('error');
+      setTimeout(() => setSubmitFeedback(null), 3000);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleWorkoutComplete = async () => {
+    if (!user || !profile) return;
+    try {
+      const docRef = doc(db, 'users', user.uid);
+      const xpGained = 150;
+      await updateDoc(docRef, {
+        xp: profile.xp + xpGained,
+        level: Math.floor((profile.xp + xpGained) / 1000) + 1
+      });
+      setProfile(prev => prev ? { 
+        ...prev, 
+        xp: prev.xp + xpGained, 
+        level: Math.floor((prev.xp + xpGained) / 1000) + 1 
+      } : null);
+    } catch (err) {
+      console.error('Error updating XP:', err);
     }
   };
 
@@ -209,9 +354,19 @@ export default function App() {
           <h1 className="text-xl font-display font-bold tracking-tight text-zinc-900">TeenGrowth</h1>
           <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">14岁增肌成长计划</p>
         </div>
-        <div className="flex gap-2">
-          <div className="bg-emerald-100 text-emerald-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase">
-            BMI 19.3
+        <div className="flex items-center gap-3">
+          {profile && (
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-1 rounded-full text-[10px] font-black">
+                <Flame className="w-3 h-3 fill-current" /> {profile.streak}
+              </div>
+              <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-2 py-1 rounded-full text-[10px] font-black">
+                <Zap className="w-3 h-3 fill-current" /> {profile.xp} XP
+              </div>
+            </div>
+          )}
+          <div className="bg-zinc-100 text-zinc-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase">
+            LVL {profile?.level || 1}
           </div>
         </div>
       </div>
@@ -266,7 +421,10 @@ export default function App() {
             >
               {(workoutState === 'exercise' || workoutState === 'warmup' || workoutState === 'cooldown') && currentEx ? (
                 <>
-                  <div className="w-72 h-72 mx-auto bg-zinc-900 rounded-[3rem] flex items-center justify-center border-8 border-zinc-800 relative overflow-hidden group shadow-2xl shadow-emerald-500/10">
+                  <div 
+                    onClick={handlePhaseTransition}
+                    className="w-72 h-72 mx-auto bg-zinc-900 rounded-[3rem] flex items-center justify-center border-8 border-zinc-800 relative overflow-hidden group shadow-2xl shadow-emerald-500/10 cursor-pointer active:scale-95 transition-transform"
+                  >
                     <Dumbbell className="w-32 h-32 text-emerald-500 opacity-20" />
                     
                     <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 100 100">
@@ -285,8 +443,13 @@ export default function App() {
                       />
                     </svg>
                     
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-7xl font-display font-black tabular-nums tracking-tighter text-white">{timeLeft}</span>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1">
+                        {timeLeft > 0 ? 'Remaining' : 'Extra Time'}
+                      </span>
+                      <span className={`text-7xl font-display font-black tabular-nums tracking-tighter ${timeLeft > 0 ? 'text-white' : 'text-emerald-400'}`}>
+                        {timeLeft > 0 ? timeLeft : extraTime}s
+                      </span>
                     </div>
                   </div>
                   <div className="space-y-4">
@@ -319,29 +482,111 @@ export default function App() {
                   </div>
                 </>
               ) : workoutState === 'finished' ? (
-                <div className="space-y-6">
+                <div className="space-y-6 max-w-sm mx-auto">
                   <div className="w-24 h-24 bg-emerald-500 rounded-full mx-auto flex items-center justify-center shadow-lg shadow-emerald-500/20">
                     <CheckCircle2 className="w-12 h-12 text-white" />
                   </div>
-                  <h2 className="text-4xl font-display font-bold">训练完成！</h2>
-                  <p className="text-zinc-400">你今天表现得非常棒，记得补充蛋白质。</p>
+                  <div className="space-y-2">
+                    <h2 className="text-4xl font-display font-bold">训练完成！</h2>
+                    <p className="text-zinc-400">你今天表现得非常棒，获得了 150 XP。</p>
+                  </div>
+                  
+                  <div className="bg-zinc-900 p-6 rounded-3xl border border-zinc-800 space-y-4">
+                    <p className="text-xs font-bold text-zinc-500 uppercase tracking-widest">记录今日最佳表现</p>
+                    <div className="flex gap-2">
+                      <input 
+                        type="number" 
+                        placeholder="输入深蹲次数" 
+                        id="perf-input"
+                        className="flex-1 bg-zinc-800 border-none rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-emerald-500/20"
+                      />
+                      <button 
+                        onClick={async () => {
+                          const val = (document.getElementById('perf-input') as HTMLInputElement).value;
+                          if (val && user) {
+                            try {
+                              await addDoc(collection(db, 'users', user.uid, 'logs'), {
+                                exerciseId: 'squats',
+                                date: new Date().toISOString(),
+                                value: parseInt(val),
+                                type: 'reps'
+                              });
+                              alert('记录成功！');
+                            } catch (err) {
+                              console.error(err);
+                            }
+                          }
+                        }}
+                        className="bg-emerald-500 text-white px-6 rounded-xl font-bold text-sm"
+                      >
+                        记录
+                      </button>
+                    </div>
+                  </div>
+
                   <button 
                     onClick={resetWorkout}
-                    className="bg-white text-black px-8 py-3 rounded-full font-bold"
+                    className="w-full bg-white text-black py-4 rounded-2xl font-bold text-lg"
                   >
                     回到首页
                   </button>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="text-8xl font-display font-black text-zinc-100 tabular-nums">
-                    {timeLeft}
+                <div className="space-y-8 w-full max-w-sm mx-auto">
+                  <div className="space-y-2">
+                    <div className="text-8xl font-display font-black text-zinc-100 tabular-nums">
+                      {timeLeft}
+                    </div>
+                    <p className="text-xl text-zinc-400 font-medium">
+                      {workoutState === 'warmup' ? '准备热身...' : 
+                       workoutState === 'rest' ? `即将开始: ${currentPlan.exercises[currentExerciseIndex + 1]?.name}` :
+                       workoutState === 'round_rest' ? '深呼吸，准备下一轮' : '放松身体'}
+                    </p>
                   </div>
-                  <p className="text-xl text-zinc-400 font-medium">
-                    {workoutState === 'warmup' ? '准备热身...' : 
-                     workoutState === 'rest' ? `即将开始: ${currentPlan.exercises[currentExerciseIndex + 1]?.name}` :
-                     workoutState === 'round_rest' ? '深呼吸，准备下一轮' : '放松身体'}
-                  </p>
+
+                  {pendingLog && (
+                    <motion.div 
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-zinc-900 p-6 rounded-[2rem] border border-zinc-800 space-y-4 shadow-2xl"
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">记录上组表现: {pendingLog.name}</p>
+                        <span className="text-[10px] font-bold text-emerald-500">自动计时: {pendingLog.baseValue + pendingLog.extraValue}{pendingLog.type === 'seconds' ? 's' : '次'}</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <input 
+                          type="number"
+                          placeholder={pendingLog.type === 'seconds' ? "输入实际秒数" : "输入实际次数"}
+                          value={manualPerformance}
+                          onChange={(e) => setManualPerformance(e.target.value)}
+                          className="flex-1 bg-zinc-800 border-none rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-emerald-500/20"
+                        />
+                        <button 
+                          onClick={submitSetPerformance}
+                          disabled={isSubmitting}
+                          className={`${
+                            submitFeedback === 'success' ? 'bg-emerald-600' : 
+                            submitFeedback === 'error' ? 'bg-rose-500' : 
+                            'bg-emerald-500'
+                          } text-white px-6 rounded-xl font-bold text-sm active:scale-95 transition-all flex items-center justify-center min-w-[80px] h-12 disabled:opacity-50`}
+                        >
+                          {isSubmitting ? (
+                            <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : submitFeedback === 'success' ? (
+                            <CheckCircle2 className="w-5 h-5" />
+                          ) : submitFeedback === 'error' ? (
+                            '失败'
+                          ) : (
+                            '提交'
+                          )}
+                        </button>
+                      </div>
+                      {submitFeedback === 'error' && !user && (
+                        <p className="text-[10px] text-rose-400 font-bold text-center">请先登录以保存数据</p>
+                      )}
+                    </motion.div>
+                  )}
                 </div>
               )}
             </motion.div>
@@ -388,6 +633,44 @@ export default function App() {
       animate={{ opacity: 1, y: 0 }}
       className="space-y-6"
     >
+      {/* Hotspots / 热点 */}
+      <section className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm overflow-hidden relative">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-emerald-500" /> 每日热点
+          </h3>
+          <span className="text-[10px] font-bold text-zinc-400">{new Date().toLocaleDateString()}</span>
+        </div>
+        <div className="space-y-4">
+          <div className="flex gap-4">
+            <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center shrink-0">
+              <Flame className="w-6 h-6 text-amber-600" />
+            </div>
+            <div>
+              <h4 className="font-bold text-zinc-900 text-sm">今日打卡</h4>
+              <p className="text-xs text-zinc-500 mt-0.5">完成今日训练即可获得 150 XP 和 1 天连胜！</p>
+              {!profile?.lastCheckIn?.includes(new Date().toISOString().split('T')[0]) && (
+                <button 
+                  onClick={handleCheckIn}
+                  className="mt-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline"
+                >
+                  立即签到 +50 XP
+                </button>
+              )}
+            </div>
+          </div>
+          <div className="flex gap-4">
+            <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center shrink-0">
+              <Trophy className="w-6 h-6 text-indigo-600" />
+            </div>
+            <div>
+              <h4 className="font-bold text-zinc-900 text-sm">成长预测</h4>
+              <p className="text-xs text-zinc-500 mt-0.5">根据你的表现，下周深蹲重量预计可提升 2.5kg。</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section className="bg-zinc-900 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden">
         <div className="relative z-10">
           <div className="flex items-center gap-2 mb-4">
@@ -433,9 +716,17 @@ export default function App() {
               <p className="text-[10px] text-zinc-400 uppercase font-bold">休息</p>
               <p className="text-lg font-display font-bold text-zinc-900">15s</p>
             </div>
-            <div className="bg-white p-2 rounded-xl border border-zinc-200">
-              <p className="text-[10px] text-zinc-400 uppercase font-bold">轮数</p>
-              <p className="text-lg font-display font-bold text-zinc-900">3轮</p>
+            <div className="bg-white p-2 rounded-xl border border-zinc-200 relative group">
+              <p className="text-[10px] text-zinc-400 uppercase font-bold">大循环数</p>
+              <input 
+                type="number" 
+                value={totalRounds}
+                onChange={(e) => setTotalRounds(Math.max(1, parseInt(e.target.value) || 1))}
+                className="w-full text-center text-lg font-display font-bold text-emerald-600 bg-transparent border-none focus:ring-0 p-0"
+              />
+              <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[8px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                点击修改循环次数
+              </div>
             </div>
           </div>
           <p className="text-[10px] text-zinc-500 mt-3 text-center italic">每轮结束后休息 90 秒</p>
@@ -936,7 +1227,7 @@ export default function App() {
 
         <div className="space-y-8">
           <div className="aspect-video bg-zinc-900 rounded-3xl flex items-center justify-center relative overflow-hidden">
-            <Activity className="w-20 h-20 text-emerald-500 opacity-20" />
+            <Activity className="w-16 h-16 text-zinc-700" />
           </div>
 
           <div>
@@ -959,6 +1250,14 @@ export default function App() {
                 </span>
               ))}
             </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-lg font-display font-bold px-1">数据分析</h3>
+            <PerformanceCharts 
+              exerciseName={ex.name} 
+              logs={userLogs.filter(l => l.exerciseId === ex.id).map(l => ({ date: l.date, value: l.value }))} 
+            />
           </div>
 
           {ex.demonstrationSteps && (
@@ -1017,6 +1316,50 @@ export default function App() {
     </motion.div>
   );
 
+  const renderProfile = () => (
+    <motion.div 
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      className="space-y-6 pb-12"
+    >
+      <section className="bg-white p-6 rounded-[2.5rem] border border-zinc-200 shadow-sm">
+        <h3 className="text-xl font-display font-bold mb-6">账户中心</h3>
+        <Auth onUserChange={setUser} />
+      </section>
+
+      {user && (
+        <>
+          <section className="bg-zinc-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
+            <div className="relative z-10">
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">Current Progress</p>
+              <h2 className="text-4xl font-display font-bold mb-4">Level {profile?.level || 1}</h2>
+              <div className="w-full bg-zinc-800 h-3 rounded-full overflow-hidden mb-2">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${((profile?.xp || 0) % 1000) / 10}%` }}
+                  className="h-full bg-emerald-500"
+                />
+              </div>
+              <div className="flex justify-between text-[10px] font-bold text-zinc-500 uppercase">
+                <span>{(profile?.xp || 0) % 1000} XP</span>
+                <span>1000 XP to Level {(profile?.level || 1) + 1}</span>
+              </div>
+            </div>
+            <Activity className="absolute -right-4 -bottom-4 w-32 h-32 text-white/5" />
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-lg font-display font-bold px-1">数据分析</h3>
+            <PerformanceCharts 
+              exerciseName="深蹲 (Squats)" 
+              logs={userLogs.filter(l => l.exerciseId === 'squats').map(l => ({ date: l.date, value: l.value }))} 
+            />
+          </section>
+        </>
+      )}
+    </motion.div>
+  );
+
   return (
     <div className="min-h-screen bg-zinc-50 pb-24">
       {renderHeader()}
@@ -1027,6 +1370,7 @@ export default function App() {
           {activeTab === 'schedule' && renderSchedule()}
           {activeTab === 'library' && renderLibrary()}
           {activeTab === 'nutrition' && renderNutrition()}
+          {activeTab === 'profile' && renderProfile()}
         </AnimatePresence>
       </main>
 
@@ -1060,8 +1404,17 @@ export default function App() {
             <Utensils className="w-6 h-6" />
             <span className="text-[10px] font-bold uppercase">营养</span>
           </button>
+          <button 
+            onClick={() => setActiveTab('profile')}
+            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'profile' ? 'text-zinc-900' : 'text-zinc-400'}`}
+          >
+            <UserIcon className="w-6 h-6" />
+            <span className="text-[10px] font-bold uppercase">我的</span>
+          </button>
         </div>
       </nav>
+
+      <Chatbot />
 
       <AnimatePresence>
         {selectedExercise && renderExerciseDetail(selectedExercise)}

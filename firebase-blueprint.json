@@ -1,0 +1,41 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Stores user progress, XP, and streak information.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "displayName": { "type": "string" },
+        "xp": { "type": "number", "description": "Total experience points earned." },
+        "streak": { "type": "number", "description": "Current daily check-in streak." },
+        "lastCheckIn": { "type": "string", "format": "date-time", "description": "ISO timestamp of the last check-in." },
+        "level": { "type": "number", "description": "User's current fitness level." }
+      },
+      "required": ["uid", "email"]
+    },
+    "ExerciseLog": {
+      "title": "Exercise Log",
+      "description": "Records performance for a specific exercise session.",
+      "type": "object",
+      "properties": {
+        "exerciseId": { "type": "string" },
+        "date": { "type": "string", "format": "date-time" },
+        "value": { "type": "number", "description": "Reps, seconds, or other performance metric." },
+        "type": { "type": "string", "enum": ["reps", "seconds"] }
+      },
+      "required": ["exerciseId", "date", "value", "type"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile document."
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": "ExerciseLog",
+      "description": "Historical performance logs for exercises."
+    }
+  }
+}
