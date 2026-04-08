@@ -13,9 +13,9 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { motion, AnimatePresence } from 'motion/react';
 import { LogIn, UserPlus, LogOut, User as UserIcon, Mail, Lock, ShieldCheck } from 'lucide-react';
 
-export default function Auth({ onUserChange }: { onUserChange: (user: FirebaseUser | null) => void }) {
+export default function Auth({ onUserChange, profile }: { onUserChange: (user: FirebaseUser | null) => void, profile: any }) {
   const [isLogin, setIsLogin] = useState(true);
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -33,15 +33,20 @@ export default function Auth({ onUserChange }: { onUserChange: (user: FirebaseUs
     e.preventDefault();
     setLoading(true);
     setError('');
+    
+    // Convert username to a dummy email for Firebase Auth
+    const internalEmail = `${username.trim().toLowerCase()}@teen-growth.app`;
+
     try {
       if (isLogin) {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmailAndPassword(auth, internalEmail, password);
       } else {
-        const res = await createUserWithEmailAndPassword(auth, email, password);
+        const res = await createUserWithEmailAndPassword(auth, internalEmail, password);
         // Initialize user doc
         await setDoc(doc(db, 'users', res.user.uid), {
           uid: res.user.uid,
-          email: res.user.email,
+          username: username.trim(),
+          email: internalEmail,
           xp: 0,
           streak: 0,
           level: 1,
@@ -51,7 +56,11 @@ export default function Auth({ onUserChange }: { onUserChange: (user: FirebaseUs
       }
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed') {
-        setError('登录方式未启用。请在 Firebase 控制台启用“邮箱/密码”登录。');
+        setError('登录系统配置中，请稍后再试。');
+      } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
+        setError('用户名或密码错误');
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('该用户名已被占用');
       } else {
         setError(err.message);
       }
@@ -68,10 +77,13 @@ export default function Auth({ onUserChange }: { onUserChange: (user: FirebaseUs
       const res = await signInWithPopup(auth, provider);
       
       // Check if user doc exists, if not initialize it
-      const userDoc = await getDoc(doc(db, 'users', res.user.uid));
-      if (!userDoc.exists()) {
-        await setDoc(doc(db, 'users', res.user.uid), {
+      const docRef = doc(db, 'users', res.user.uid);
+      const docSnap = await getDoc(docRef);
+
+      if (!docSnap.exists()) {
+        await setDoc(docRef, {
           uid: res.user.uid,
+          username: res.user.displayName || res.user.email?.split('@')[0] || 'User',
           email: res.user.email,
           xp: 0,
           streak: 0,
@@ -94,7 +106,9 @@ export default function Auth({ onUserChange }: { onUserChange: (user: FirebaseUs
           <UserIcon className="w-4 h-4" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-[10px] text-zinc-500 font-bold uppercase truncate">{user.email}</p>
+          <p className="text-[10px] text-zinc-500 font-bold uppercase truncate">
+            {profile?.username || user.email?.split('@')[0]}
+          </p>
         </div>
         <button 
           onClick={() => signOut(auth)}
@@ -125,12 +139,12 @@ export default function Auth({ onUserChange }: { onUserChange: (user: FirebaseUs
 
       <form onSubmit={handleAuth} className="space-y-4">
         <div className="relative">
-          <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+          <UserIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
           <input 
-            type="email" 
-            placeholder="邮箱" 
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
+            type="text" 
+            placeholder="用户名" 
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
             className="w-full bg-zinc-50 border border-zinc-200 rounded-xl py-3 pl-10 pr-4 text-sm focus:ring-2 focus:ring-emerald-500/20 outline-none"
             required
           />

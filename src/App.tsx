@@ -1324,7 +1324,7 @@ export default function App() {
     >
       <section className="bg-white p-6 rounded-[2.5rem] border border-zinc-200 shadow-sm">
         <h3 className="text-xl font-display font-bold mb-6">账户中心</h3>
-        <Auth onUserChange={setUser} />
+        <Auth onUserChange={setUser} profile={profile} />
       </section>
 
       {user && (
