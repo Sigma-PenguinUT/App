@@ -55,14 +55,15 @@ export default function Auth({ onUserChange, profile }: { onUserChange: (user: F
         });
       }
     } catch (err: any) {
+      console.error('Auth Error:', err.code, err.message);
       if (err.code === 'auth/operation-not-allowed') {
-        setError('登录系统配置中，请稍后再试。');
+        setError(`登录方式未启用 (Code: ${err.code})。请确认你在项目 gen-lang-client-0009616005 中开启了该功能。`);
       } else if (err.code === 'auth/user-not-found' || err.code === 'auth/wrong-password' || err.code === 'auth/invalid-credential') {
         setError('用户名或密码错误');
       } else if (err.code === 'auth/email-already-in-use') {
         setError('该用户名已被占用');
       } else {
-        setError(err.message);
+        setError(`${err.message} (Code: ${err.code})`);
       }
     } finally {
       setLoading(false);

@@ -34,7 +34,8 @@ import {
   AlertCircle,
   Activity,
   User as UserIcon,
-  TrendingUp
+  TrendingUp,
+  Award
 } from 'lucide-react';
 import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS, COMMON_WARMUP, COMMON_COOLDOWN } from './constants';
 import { DayPlan, Exercise, WorkoutSet } from './types';
@@ -54,6 +55,20 @@ const IconMap: Record<string, React.ReactNode> = {
 
 type WorkoutState = 'idle' | 'warmup' | 'exercise' | 'rest' | 'round_rest' | 'cooldown' | 'finished';
 
+const REWARDS = [
+  { id: 'badge1', name: '初学者', xp: 100, icon: <Trophy className="w-6 h-6 text-amber-500" />, desc: '完成第一组训练' },
+  { id: 'badge2', name: '肌肉先锋', xp: 500, icon: <Zap className="w-6 h-6 text-indigo-500" />, desc: '积累 500 XP' },
+  { id: 'badge3', name: '自律达人', xp: 1000, icon: <Flame className="w-6 h-6 text-rose-500" />, desc: '达到 10 级' },
+  { id: 'badge4', name: '力量之源', xp: 2500, icon: <Target className="w-6 h-6 text-emerald-500" />, desc: '完成 50 次大循环' },
+];
+
+const LEVEL_REWARDS = [
+  { level: 2, reward: '解锁新背景音乐', icon: <Volume2 className="w-4 h-4" /> },
+  { level: 5, reward: '解锁高级训练计划', icon: <Target className="w-4 h-4" /> },
+  { level: 10, reward: '获得“自律达人”称号', icon: <Award className="w-4 h-4" /> },
+  { level: 20, reward: '解锁专业营养建议', icon: <Utensils className="w-4 h-4" /> },
+];
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<'today' | 'schedule' | 'library' | 'nutrition' | 'profile'>('today');
   const [selectedDay, setSelectedDay] = useState<DayPlan | null>(null);
@@ -66,6 +81,7 @@ export default function App() {
   const [user, setUser] = useState<FirebaseUser | null>(null);
   const [profile, setProfile] = useState<{ xp: number; streak: number; level: number; lastCheckIn?: string } | null>(null);
   const [userLogs, setUserLogs] = useState<any[]>([]);
+  const [chartExerciseId, setChartExerciseId] = useState('squats');
 
   // Workout Timer State
   const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
@@ -77,11 +93,12 @@ export default function App() {
   const [isPaused, setIsPaused] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [manualPerformance, setManualPerformance] = useState('');
-  const [pendingLog, setPendingLog] = useState<{ id: string; name: string; type: string; baseValue: number; extraValue: number } | null>(null);
+  const [pendingLog, setPendingLog] = useState<{ id: string; name: string; type: string; baseValue: number; extraValue: number; actualElapsed?: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitFeedback, setSubmitFeedback] = useState<'success' | 'error' | null>(null);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const phaseStartTimeRef = useRef<number>(0);
 
   // Get current day of week (0-6, Monday = 0)
   const todayIndex = (new Date().getDay() + 6) % 7;
@@ -210,18 +227,30 @@ export default function App() {
   const handlePhaseTransition = async () => {
     playBeep();
     
-    // Capture performance for the waiting part
+    const elapsed = Math.floor((Date.now() - phaseStartTimeRef.current) / 1000);
+    
+    // Auto-submit any pending log from previous set before moving on
+    if (pendingLog) {
+      await submitSetPerformance();
+    }
+    
+    // Capture performance for the current set
     if (workoutState === 'exercise') {
       const currentEx = currentPlan.exercises[currentExerciseIndex];
+      const isSeconds = currentEx.reps.includes('s');
+      
       setPendingLog({
         id: currentEx.id,
         name: currentEx.name,
-        type: currentEx.reps.includes('s') ? 'seconds' : 'reps',
-        baseValue: getSeconds(currentEx.reps),
-        extraValue: extraTime
+        type: isSeconds ? 'seconds' : 'reps',
+        baseValue: isSeconds ? elapsed : parseInt(currentEx.reps) || 0,
+        extraValue: extraTime,
+        actualElapsed: elapsed
       });
       setExtraTime(0);
     }
+    
+    phaseStartTimeRef.current = Date.now();
 
     if (workoutState === 'warmup') {
       const isLastWarmup = currentExerciseIndex === (currentPlan.warmup?.length || 0) - 1;
@@ -272,16 +301,40 @@ export default function App() {
     }
     if (!pendingLog) return;
     
+    // Don't auto-submit if the set was too short (likely a skip)
+    // Unless it's a manual submission (manualPerformance is set)
+    if (!manualPerformance && pendingLog.actualElapsed && pendingLog.actualElapsed < 3) {
+      setPendingLog(null);
+      return;
+    }
+    
     setIsSubmitting(true);
     const finalValue = manualPerformance ? parseInt(manualPerformance) : (pendingLog.baseValue + pendingLog.extraValue);
     
     try {
+      // 1. Log the performance
       await addDoc(collection(db, 'users', user.uid, 'logs'), {
         exerciseId: pendingLog.id,
         date: new Date().toISOString(),
         value: finalValue,
         type: pendingLog.type
       });
+
+      // 2. Award XP immediately (Bonus for effort)
+      const baseXP = 25;
+      const effortBonus = Math.floor((pendingLog.actualElapsed || 0) / 10); // 1 XP per 10 seconds
+      const xpGained = baseXP + effortBonus;
+      
+      const newXp = (profile?.xp || 0) + xpGained;
+      const newLevel = Math.floor(newXp / 1000) + 1;
+      
+      await updateDoc(doc(db, 'users', user.uid), {
+        xp: newXp,
+        level: newLevel
+      });
+
+      setProfile(prev => prev ? { ...prev, xp: newXp, level: newLevel } : null);
+      
       setPendingLog(null);
       setManualPerformance('');
       setSubmitFeedback('success');
@@ -299,15 +352,19 @@ export default function App() {
     if (!user || !profile) return;
     try {
       const docRef = doc(db, 'users', user.uid);
-      const xpGained = 150;
+      const xpGained = 300; // Bonus for full workout
+      const newXp = profile.xp + xpGained;
+      const newLevel = Math.floor(newXp / 1000) + 1;
+      
       await updateDoc(docRef, {
-        xp: profile.xp + xpGained,
-        level: Math.floor((profile.xp + xpGained) / 1000) + 1
+        xp: newXp,
+        level: newLevel
       });
+      
       setProfile(prev => prev ? { 
         ...prev, 
-        xp: prev.xp + xpGained, 
-        level: Math.floor((prev.xp + xpGained) / 1000) + 1 
+        xp: newXp, 
+        level: newLevel 
       } : null);
     } catch (err) {
       console.error('Error updating XP:', err);
@@ -319,10 +376,12 @@ export default function App() {
     setCurrentRound(round);
     setWorkoutState('exercise');
     setTimeLeft(getSeconds(currentPlan.exercises[index].reps));
+    phaseStartTimeRef.current = Date.now();
   };
 
   const startWorkout = (plan: DayPlan = todayPlan) => {
     setCurrentPlan(plan);
+    phaseStartTimeRef.current = Date.now();
     if (plan.warmup && plan.warmup.length > 0) {
       setWorkoutState('warmup');
       setCurrentExerciseIndex(0);
@@ -627,28 +686,74 @@ export default function App() {
     );
   };
 
-  const renderToday = () => (
-    <motion.div 
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="space-y-6"
-    >
+  const renderToday = () => {
+    // Calculate weekly activity (fire thing)
+    const last7Days = Array.from({ length: 7 }, (_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - (6 - i));
+      return d.toISOString().split('T')[0];
+    });
+    
+    const activeDays = new Set(userLogs.map(l => l.date.split('T')[0]));
+
+    // Dynamic Growth Prediction
+    const getPrediction = () => {
+      if (userLogs.length < 3) return { exercise: '深蹲 (Squats)', value: '2.5kg' };
+      
+      const exerciseGroups: Record<string, any[]> = {};
+      userLogs.forEach(log => {
+        if (!exerciseGroups[log.exerciseId]) exerciseGroups[log.exerciseId] = [];
+        exerciseGroups[log.exerciseId].push(log);
+      });
+      
+      let bestExId = 'squats';
+      let maxLogs = 0;
+      Object.entries(exerciseGroups).forEach(([id, logs]) => {
+        if (logs.length > maxLogs) {
+          maxLogs = logs.length;
+          bestExId = id;
+        }
+      });
+      
+      const ex = MASTER_EXERCISE_LIBRARY.find(e => e.id === bestExId);
+      const lastLog = exerciseGroups[bestExId].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      
+      return {
+        exercise: ex?.name || bestExId,
+        value: lastLog.type === 'seconds' ? '5s' : '2.5kg'
+      };
+    };
+
+    const prediction = getPrediction();
+
+    return (
+      <motion.div 
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="space-y-6"
+      >
       {/* Hotspots / 热点 */}
-      <section className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm overflow-hidden relative">
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400 flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-emerald-500" /> 每日热点
-          </h3>
-          <span className="text-[10px] font-bold text-zinc-400">{new Date().toLocaleDateString()}</span>
+      <section className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm overflow-hidden relative text-center">
+        <div className="flex items-center justify-center gap-2 mb-4">
+          <TrendingUp className="w-4 h-4 text-emerald-500" />
+          <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400">每日热点</h3>
         </div>
         <div className="space-y-4">
           <div className="flex gap-4">
-            <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center shrink-0">
-              <Flame className="w-6 h-6 text-amber-600" />
+            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0">
+              <Flame className="w-6 h-6 text-amber-500" />
             </div>
-            <div>
+            <div className="text-left flex-1">
               <h4 className="font-bold text-zinc-900 text-sm">今日打卡</h4>
-              <p className="text-xs text-zinc-500 mt-0.5">完成今日训练即可获得 150 XP 和 1 天连胜！</p>
+              <div className="flex gap-1 mt-1.5">
+                {last7Days.map(date => (
+                  <div 
+                    key={date} 
+                    className={`w-2 h-2 rounded-full ${activeDays.has(date) ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-zinc-100'}`}
+                    title={date}
+                  />
+                ))}
+              </div>
               {!profile?.lastCheckIn?.includes(new Date().toISOString().split('T')[0]) && (
                 <button 
                   onClick={handleCheckIn}
@@ -660,45 +765,65 @@ export default function App() {
             </div>
           </div>
           <div className="flex gap-4">
-            <div className="w-12 h-12 bg-indigo-100 rounded-2xl flex items-center justify-center shrink-0">
+            <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0">
               <Trophy className="w-6 h-6 text-indigo-600" />
             </div>
-            <div>
+            <div className="text-left">
               <h4 className="font-bold text-zinc-900 text-sm">成长预测</h4>
-              <p className="text-xs text-zinc-500 mt-0.5">根据你的表现，下周深蹲重量预计可提升 2.5kg。</p>
+              <p className="text-xs text-zinc-500 mt-0.5">根据你的表现，下周<span className="text-indigo-600 font-bold">{prediction.exercise}</span>预计可提升 {prediction.value}。</p>
             </div>
           </div>
         </div>
       </section>
 
-      <section className="bg-zinc-900 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden">
-        <div className="relative z-10">
-          <div className="flex items-center gap-2 mb-4">
-            <span className="bg-emerald-500 text-white text-[10px] font-black px-2 py-1 rounded-full uppercase tracking-widest">
+      <section className="bg-zinc-50 rounded-3xl p-6 border border-zinc-200">
+        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 mb-4 flex items-center gap-2">
+          <Target className="w-4 h-4 text-emerald-500" /> 每日目标
+        </h3>
+        <div className="space-y-3">
+          {[
+            { id: 'goal1', text: '完成 3 组正式训练', xp: 50, done: userLogs.filter(l => l.date.includes(new Date().toISOString().split('T')[0])).length >= 3 },
+            { id: 'goal2', text: '训练时长超过 15 分钟', xp: 100, done: false },
+            { id: 'goal3', text: '在休息阶段手动记录数据', xp: 30, done: false },
+          ].map(goal => (
+            <div key={goal.id} className="flex items-center justify-between bg-white p-3 rounded-2xl border border-zinc-100 shadow-sm">
+              <div className="flex items-center gap-3">
+                {goal.done ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <div className="w-4 h-4 rounded-full border-2 border-zinc-200" />}
+                <span className={`text-xs font-bold ${goal.done ? 'text-zinc-400 line-through' : 'text-zinc-700'}`}>{goal.text}</span>
+              </div>
+              <span className="text-[10px] font-black text-emerald-600">+{goal.xp} XP</span>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-zinc-900 text-white rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden text-center">
+        <div className="relative z-10 flex flex-col items-center">
+          <div className="flex items-center gap-2 mb-6">
+            <span className="bg-emerald-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
               {todayPlan.isRest ? '休息日' : '训练日'}
             </span>
             <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">{todayPlan.day}</span>
           </div>
-          <h2 className="text-4xl font-display font-bold leading-tight mb-4">
+          <h2 className="text-5xl font-display font-bold leading-tight mb-6">
             {todayPlan.focus}
           </h2>
-          <p className="text-zinc-400 text-sm leading-relaxed mb-6">
+          <p className="text-zinc-400 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
             明白，我懂了！你现在的动力非常足，想要更有挑战性、密度更高的训练。
-            30 分钟内完成 7-8 个动作，采用<span className="text-white font-bold">“循环训练法”（Circuit Training）</span>：
-            每个动作连续做，中间只休息 15-20 秒，完成一轮后再休息 1-2 分钟。
+            采用<span className="text-white font-bold">“循环训练法”</span>，挑战你的极限。
           </p>
           <motion.button 
             whileHover={{ scale: 1.02 }}
             whileTap={{ scale: 0.98 }}
             onClick={() => startWorkout()}
-            className="w-full bg-emerald-500 hover:bg-emerald-400 text-white py-4 rounded-2xl font-black text-lg shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 transition-colors"
+            className="w-full max-w-xs bg-emerald-500 hover:bg-emerald-400 text-white py-5 rounded-[2rem] font-black text-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-3 transition-colors"
           >
-            <Play className="w-5 h-5 fill-current" />
-            立即开始训练
+            <Play className="w-6 h-6 fill-current" />
+            立即开始
           </motion.button>
         </div>
         <div className="absolute -right-8 -bottom-8 opacity-10">
-          <Flame size={180} />
+          <Flame size={200} />
         </div>
       </section>
 
@@ -832,6 +957,7 @@ export default function App() {
       </section>
     </motion.div>
   );
+};
 
   const renderSchedule = () => (
     <motion.div 
@@ -1108,10 +1234,14 @@ export default function App() {
                 onClick={() => setSelectedExercise(ex)}
                 className="bg-white rounded-3xl border border-zinc-200 overflow-hidden shadow-sm group"
               >
-                <div className="aspect-square bg-zinc-100 relative overflow-hidden">
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Activity className="w-10 h-10 text-zinc-300" />
-                  </div>
+                <div className="aspect-square bg-zinc-900 relative overflow-hidden">
+                  <img 
+                    src={`https://picsum.photos/seed/${ex.id}/400/400`} 
+                    alt={ex.name}
+                    className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-500"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
                   <div className="absolute top-2 right-2">
                     <span className="bg-black/50 backdrop-blur-md text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded">
                       {ex.category}
@@ -1226,8 +1356,17 @@ export default function App() {
         </button>
 
         <div className="space-y-8">
-          <div className="aspect-video bg-zinc-900 rounded-3xl flex items-center justify-center relative overflow-hidden">
-            <Activity className="w-16 h-16 text-zinc-700" />
+          <div className="aspect-video bg-zinc-900 rounded-3xl flex items-center justify-center relative overflow-hidden shadow-2xl">
+            <img 
+              src={`https://picsum.photos/seed/${ex.id}/800/450`} 
+              alt={ex.name}
+              className="absolute inset-0 w-full h-full object-cover opacity-60"
+              referrerPolicy="no-referrer"
+            />
+            <div className="relative z-10 text-white text-center p-6">
+              <Activity className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
+              <p className="text-xs font-black uppercase tracking-[0.2em] opacity-80">TeenGrowth Pro</p>
+            </div>
           </div>
 
           <div>
@@ -1349,11 +1488,119 @@ export default function App() {
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-lg font-display font-bold px-1">数据分析</h3>
+            <h3 className="text-lg font-display font-bold px-1 text-center">等级奖励</h3>
+            <div className="space-y-2">
+              {LEVEL_REWARDS.map(item => (
+                <div 
+                  key={item.level}
+                  className={`p-4 rounded-2xl border flex items-center justify-between ${
+                    (profile?.level || 1) >= item.level ? 'bg-white border-zinc-200' : 'bg-zinc-50 border-zinc-100 opacity-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-zinc-100 rounded-lg flex items-center justify-center">
+                      {item.icon}
+                    </div>
+                    <div>
+                      <p className="text-xs font-bold text-zinc-900">{item.reward}</p>
+                      <p className="text-[8px] text-zinc-400 uppercase font-black tracking-widest">Level {item.level} Required</p>
+                    </div>
+                  </div>
+                  {(profile?.level || 1) >= item.level ? (
+                    <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                  ) : (
+                    <Clock className="w-4 h-4 text-zinc-300" />
+                  )}
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-lg font-display font-bold px-1 text-center">成就与奖品</h3>
+            <div className="grid grid-cols-2 gap-4">
+              {REWARDS.map(reward => {
+                const isUnlocked = (profile?.xp || 0) >= reward.xp;
+                return (
+                  <div 
+                    key={reward.id}
+                    className={`p-4 rounded-3xl border transition-all text-center space-y-2 ${
+                      isUnlocked ? 'bg-white border-zinc-200 shadow-sm' : 'bg-zinc-50 border-zinc-100 opacity-50 grayscale'
+                    }`}
+                  >
+                    <div className="w-12 h-12 mx-auto bg-zinc-50 rounded-2xl flex items-center justify-center">
+                      {reward.icon}
+                    </div>
+                    <h4 className="font-bold text-xs">{reward.name}</h4>
+                    <p className="text-[8px] text-zinc-400 leading-tight">{reward.desc}</p>
+                    {isUnlocked && (
+                      <span className="inline-block text-[8px] font-black text-emerald-500 uppercase tracking-widest">已解锁</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-lg font-display font-bold px-1 text-center">数据分析</h3>
+            
+            <div className="flex gap-2 overflow-x-auto pb-2 px-1 no-scrollbar">
+              {Array.from(new Set(userLogs.map(l => l.exerciseId))).map(id => {
+                const ex = MASTER_EXERCISE_LIBRARY.find(e => e.id === id);
+                return (
+                  <button
+                    key={id}
+                    onClick={() => setChartExerciseId(id)}
+                    className={`px-4 py-2 rounded-xl text-[10px] font-bold whitespace-nowrap transition-all ${
+                      chartExerciseId === id ? 'bg-zinc-900 text-white shadow-lg' : 'bg-white text-zinc-400 border border-zinc-200'
+                    }`}
+                  >
+                    {ex?.name || id}
+                  </button>
+                );
+              })}
+            </div>
+
             <PerformanceCharts 
-              exerciseName="深蹲 (Squats)" 
-              logs={userLogs.filter(l => l.exerciseId === 'squats').map(l => ({ date: l.date, value: l.value }))} 
+              exerciseName={MASTER_EXERCISE_LIBRARY.find(e => e.id === chartExerciseId)?.name || chartExerciseId} 
+              logs={userLogs.filter(l => l.exerciseId === chartExerciseId).map(l => ({ date: l.date, value: l.value }))} 
             />
+          </section>
+
+          <section className="space-y-4">
+            <h3 className="text-lg font-display font-bold px-1 text-center">训练历史</h3>
+            <div className="space-y-3">
+              {[...userLogs].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10).map((log, i) => {
+                const ex = MASTER_EXERCISE_LIBRARY.find(e => e.id === log.exerciseId);
+                const dateObj = new Date(log.date);
+                return (
+                  <div key={log.id || i} className="bg-white p-4 rounded-2xl border border-zinc-200 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-zinc-50 rounded-xl flex items-center justify-center">
+                        <Activity className="w-5 h-5 text-zinc-400" />
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-bold text-zinc-900">{ex?.name || log.exerciseId}</h4>
+                        <p className="text-[10px] text-zinc-400 font-medium">
+                          {dateObj.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' })} · {dateObj.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black text-emerald-500">{log.value}{log.type === 'seconds' ? 's' : '次'}</p>
+                      <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">Performance</p>
+                    </div>
+                  </div>
+                );
+              })}
+              {userLogs.length === 0 && (
+                <div className="bg-zinc-50 rounded-2xl p-8 text-center border border-dashed border-zinc-200">
+                  <Clock className="w-8 h-8 text-zinc-300 mx-auto mb-2" />
+                  <p className="text-sm text-zinc-400">暂无历史记录</p>
+                </div>
+              )}
+            </div>
           </section>
         </>
       )}

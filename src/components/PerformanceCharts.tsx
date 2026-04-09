@@ -31,18 +31,26 @@ export default function PerformanceCharts({ logs, exerciseName }: { logs: LogEnt
   const sortedLogs = [...logs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   
   // Format for chart
-  const data = sortedLogs.map(log => ({
-    date: new Date(log.date).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }),
-    value: log.value,
-    prediction: null
-  }));
+  const data = sortedLogs.map(log => {
+    const dateObj = new Date(log.date);
+    const dateStr = dateObj.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' });
+    const timeStr = dateObj.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+    
+    return {
+      fullDate: `${dateStr} ${timeStr}`,
+      date: dateStr,
+      time: timeStr,
+      value: log.value,
+      prediction: null
+    };
+  });
 
   // Add prediction (simple linear projection for demonstration)
   const lastValue = data[data.length - 1].value;
   const predictionData = [
     ...data,
-    { date: '未来1周', value: null, prediction: Math.round(lastValue * 1.05) },
-    { date: '未来2周', value: null, prediction: Math.round(lastValue * 1.10) },
+    { fullDate: '未来1周', date: '未来1周', time: '', value: null, prediction: Math.round(lastValue * 1.05) },
+    { fullDate: '未来2周', date: '未来2周', time: '', value: null, prediction: Math.round(lastValue * 1.10) },
   ];
 
   return (
@@ -73,10 +81,10 @@ export default function PerformanceCharts({ logs, exerciseName }: { logs: LogEnt
               </defs>
               <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
               <XAxis 
-                dataKey="date" 
+                dataKey="fullDate" 
                 axisLine={false} 
                 tickLine={false} 
-                tick={{ fontSize: 10, fill: '#94a3b8' }}
+                tick={{ fontSize: 8, fill: '#94a3b8' }}
                 dy={10}
               />
               <YAxis 
@@ -85,6 +93,7 @@ export default function PerformanceCharts({ logs, exerciseName }: { logs: LogEnt
               />
               <Tooltip 
                 contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                labelStyle={{ fontSize: '10px', fontWeight: 'bold', color: '#64748b' }}
               />
               <Area 
                 type="monotone" 
