@@ -35,15 +35,19 @@ import {
   Activity,
   User as UserIcon,
   TrendingUp,
-  Award
+  Award,
+  Trash2,
+  Users,
+  Bell
 } from 'lucide-react';
 import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS, COMMON_WARMUP, COMMON_COOLDOWN } from './constants';
 import { DayPlan, Exercise, WorkoutSet } from './types';
+import { translations } from './translations';
 import Auth from './components/Auth';
 import Chatbot from './components/Chatbot';
 import PerformanceCharts from './components/PerformanceCharts';
 import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, addDoc, query, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc, collection, addDoc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
 import { User as FirebaseUser } from 'firebase/auth';
 
 const IconMap: Record<string, React.ReactNode> = {
@@ -79,9 +83,25 @@ export default function App() {
 
   // User & Progress State
   const [user, setUser] = useState<FirebaseUser | null>(null);
-  const [profile, setProfile] = useState<{ xp: number; streak: number; level: number; lastCheckIn?: string } | null>(null);
+  const [profile, setProfile] = useState<{ 
+    xp: number; 
+    streak: number; 
+    level: number; 
+    lastCheckIn?: string;
+    language?: 'zh' | 'en';
+    friends?: string[];
+    completedGoals?: string[];
+  } | null>(null);
   const [userLogs, setUserLogs] = useState<any[]>([]);
-  const [chartExerciseId, setChartExerciseId] = useState('squats');
+  const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  const t = translations[language];
+
+  // Friend System State
+  const [friendsList, setFriendsList] = useState<any[]>([]);
+  const [friendRequests, setFriendRequests] = useState<any[]>([]);
+  const [searchUsername, setSearchUsername] = useState('');
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
 
   // Workout Timer State
   const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
@@ -96,6 +116,7 @@ export default function App() {
   const [pendingLog, setPendingLog] = useState<{ id: string; name: string; type: string; baseValue: number; extraValue: number; actualElapsed?: number } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitFeedback, setSubmitFeedback] = useState<'success' | 'error' | null>(null);
+  const [chartExerciseId, setChartExerciseId] = useState<string>('squats');
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const phaseStartTimeRef = useRef<number>(0);
@@ -123,7 +144,9 @@ export default function App() {
           const docRef = doc(db, 'users', user.uid);
           const docSnap = await getDoc(docRef);
           if (docSnap.exists()) {
-            setProfile(docSnap.data() as any);
+            const data = docSnap.data() as any;
+            setProfile(data);
+            if (data.language) setLanguage(data.language);
           }
           
           const logsRef = collection(db, 'users', user.uid, 'logs');
@@ -139,6 +162,48 @@ export default function App() {
       setUserLogs([]);
     }
   }, [user]);
+
+  // Auto-collect XP from Daily Goals
+  useEffect(() => {
+    if (!user || !profile) return;
+
+    const today = new Date().toISOString().split('T')[0];
+    const completedGoalsToday = profile.completedGoals || [];
+
+    const goals = [
+      { id: 'goal1', xp: 50, check: () => userLogs.filter(l => l.date.includes(today)).length >= 3 },
+      // Goal 2 and 3 are harder to track without more state, but let's stick to goal 1 for now
+    ];
+
+    const newCompleted = [...completedGoalsToday];
+    let xpToAdd = 0;
+    let changed = false;
+
+    goals.forEach(goal => {
+      const goalKey = `${goal.id}_${today}`;
+      if (!newCompleted.includes(goalKey) && goal.check()) {
+        newCompleted.push(goalKey);
+        xpToAdd += goal.xp;
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      const updateXP = async () => {
+        try {
+          const docRef = doc(db, 'users', user.uid);
+          await updateDoc(docRef, {
+            xp: profile.xp + xpToAdd,
+            completedGoals: newCompleted
+          });
+          setProfile(prev => prev ? { ...prev, xp: prev.xp + xpToAdd, completedGoals: newCompleted } : null);
+        } catch (err) {
+          console.error('Error auto-collecting XP:', err);
+        }
+      };
+      updateXP();
+    }
+  }, [userLogs, profile, user]);
 
   // Daily Check-in Logic
   const handleCheckIn = async () => {
@@ -172,7 +237,112 @@ export default function App() {
     }
   };
 
-  // Timer Logic
+  // Friend System Logic
+  const searchUsers = async () => {
+    if (!searchUsername.trim()) return;
+    setIsSearching(true);
+    try {
+      const q = query(
+        collection(db, 'users'),
+        where('displayName', '>=', searchUsername),
+        where('displayName', '<=', searchUsername + '\uf8ff')
+      );
+      const querySnapshot = await getDocs(q);
+      const results = querySnapshot.docs
+        .map(d => ({ uid: d.id, ...d.data() }))
+        .filter((u: any) => u.uid !== user?.uid);
+      setSearchResults(results);
+    } catch (err) {
+      console.error('Error searching users:', err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  const sendFriendRequest = async (targetUid: string) => {
+    if (!user) return;
+    try {
+      await addDoc(collection(db, 'friendRequests'), {
+        from: user.uid,
+        to: targetUid,
+        status: 'pending',
+        timestamp: new Date().toISOString(),
+        fromName: profile?.displayName || user.email?.split('@')[0]
+      });
+      alert('Friend request sent!');
+    } catch (err) {
+      console.error('Error sending friend request:', err);
+    }
+  };
+
+  const handleFriendRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
+    if (!user || !profile) return;
+    try {
+      const requestRef = doc(db, 'friendRequests', requestId);
+      const requestSnap = await getDoc(requestRef);
+      if (!requestSnap.exists()) return;
+      const requestData = requestSnap.data();
+
+      await updateDoc(requestRef, { status });
+
+      if (status === 'accepted') {
+        // Add to both users' friends list
+        const myRef = doc(db, 'users', user.uid);
+        const theirRef = doc(db, 'users', requestData.from);
+
+        const myFriends = [...(profile.friends || []), requestData.from];
+        await updateDoc(myRef, { friends: myFriends });
+        setProfile(prev => prev ? { ...prev, friends: myFriends } : null);
+
+        const theirSnap = await getDoc(theirRef);
+        if (theirSnap.exists()) {
+          const theirFriends = [...(theirSnap.data().friends || []), user.uid];
+          await updateDoc(theirRef, { friends: theirFriends });
+        }
+      }
+      setFriendRequests(prev => prev.filter(r => r.id !== requestId));
+    } catch (err) {
+      console.error('Error handling friend request:', err);
+    }
+  };
+
+  useEffect(() => {
+    if (user) {
+      const fetchFriendRequests = async () => {
+        const q = query(collection(db, 'friendRequests'), where('to', '==', user.uid), where('status', '==', 'pending'));
+        const snap = await getDocs(q);
+        setFriendRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      };
+      
+      const fetchFriends = async () => {
+        if (!profile?.friends?.length) {
+          setFriendsList([]);
+          return;
+        }
+        const friends = [];
+        for (const fUid of profile.friends) {
+          const d = await getDoc(doc(db, 'users', fUid));
+          if (d.exists()) friends.push({ uid: d.id, ...d.data() });
+        }
+        setFriendsList(friends);
+      };
+
+      fetchFriendRequests();
+      fetchFriends();
+    }
+  }, [user, profile?.friends]);
+
+  const toggleLanguage = async () => {
+    const newLang = language === 'zh' ? 'en' : 'zh';
+    setLanguage(newLang);
+    if (user) {
+      try {
+        await updateDoc(doc(db, 'users', user.uid), { language: newLang });
+      } catch (err) {
+        console.error('Error saving language preference:', err);
+      }
+    }
+  };
   useEffect(() => {
     if (workoutState !== 'idle' && workoutState !== 'finished' && !isPaused) {
       timerRef.current = setInterval(() => {
@@ -411,7 +581,9 @@ export default function App() {
       <div className="max-w-md mx-auto flex items-center justify-between">
         <div>
           <h1 className="text-xl font-display font-bold tracking-tight text-zinc-900">TeenGrowth</h1>
-          <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">14岁增肌成长计划</p>
+          <p className="text-xs text-zinc-500 font-medium uppercase tracking-wider">
+            {language === 'zh' ? '14岁增肌成长计划' : '14yo Muscle Growth Plan'}
+          </p>
         </div>
         <div className="flex items-center gap-3">
           {profile && (
@@ -425,7 +597,7 @@ export default function App() {
             </div>
           )}
           <div className="bg-zinc-100 text-zinc-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase">
-            LVL {profile?.level || 1}
+            {t.level} {profile?.level || 1}
           </div>
         </div>
       </div>
@@ -456,11 +628,11 @@ export default function App() {
           </button>
           <div className="text-center">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
-              {workoutState === 'warmup' ? `热身阶段 - ${currentExerciseIndex + 1}/${currentPlan.warmup?.length}` : 
-               workoutState === 'exercise' ? `第 ${currentRound} 轮 - 动作 ${currentExerciseIndex + 1}/${currentPlan.exercises.length}` :
-               workoutState === 'rest' ? '短暂休息' :
-               workoutState === 'round_rest' ? '大组休息' :
-               workoutState === 'cooldown' ? `拉伸放松 - ${currentExerciseIndex + 1}/${currentPlan.cooldown?.length}` : '训练完成'}
+              {workoutState === 'warmup' ? `${t.warmupPhase} - ${currentExerciseIndex + 1}/${currentPlan.warmup?.length}` : 
+               workoutState === 'exercise' ? (language === 'zh' ? `第 ${currentRound} 轮 - 动作 ${currentExerciseIndex + 1}/${currentPlan.exercises.length}` : `Round ${currentRound} - Exercise ${currentExerciseIndex + 1}/${currentPlan.exercises.length}`) :
+               workoutState === 'rest' ? t.rest :
+               workoutState === 'round_rest' ? t.rest :
+               workoutState === 'cooldown' ? `${t.cooldownPhase} - ${currentExerciseIndex + 1}/${currentPlan.cooldown?.length}` : t.startWorkout}
             </p>
           </div>
           <button onClick={() => setIsMuted(!isMuted)} className="text-zinc-400">
@@ -698,7 +870,7 @@ export default function App() {
 
     // Dynamic Growth Prediction
     const getPrediction = () => {
-      if (userLogs.length < 3) return { exercise: '深蹲 (Squats)', value: '2.5kg' };
+      if (userLogs.length < 3) return null;
       
       const exerciseGroups: Record<string, any[]> = {};
       userLogs.forEach(log => {
@@ -716,11 +888,19 @@ export default function App() {
       });
       
       const ex = MASTER_EXERCISE_LIBRARY.find(e => e.id === bestExId);
-      const lastLog = exerciseGroups[bestExId].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())[0];
+      const logs = exerciseGroups[bestExId].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      const lastLog = logs[0];
+      const maxVal = Math.max(...logs.map(l => l.value));
       
+      const isBodyweight = ex?.equipment === 'None' || ex?.name.includes('俯卧撑') || ex?.name.includes('深蹲');
+      const unit = lastLog.type === 'seconds' ? 's' : (isBodyweight ? (language === 'zh' ? '次' : 'reps') : 'kg');
+
       return {
         exercise: ex?.name || bestExId,
-        value: lastLog.type === 'seconds' ? '5s' : '2.5kg'
+        maxSet: maxVal,
+        predictedNext: lastLog.type === 'seconds' ? maxVal + 5 : (isBodyweight ? maxVal + 2 : maxVal + 2.5),
+        type: lastLog.type,
+        unit
       };
     };
 
@@ -732,117 +912,170 @@ export default function App() {
         animate={{ opacity: 1, y: 0 }}
         className="space-y-6"
       >
-      {/* Hotspots / 热点 */}
-      <section className="bg-white rounded-3xl p-6 border border-zinc-200 shadow-sm overflow-hidden relative text-center">
-        <div className="flex items-center justify-center gap-2 mb-4">
-          <TrendingUp className="w-4 h-4 text-emerald-500" />
-          <h3 className="text-sm font-black uppercase tracking-widest text-zinc-400">每日热点</h3>
-        </div>
-        <div className="space-y-4">
-          <div className="flex gap-4">
-            <div className="w-12 h-12 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0">
-              <Flame className="w-6 h-6 text-amber-500" />
+        <section className="bg-zinc-900 text-white rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden text-center">
+          <div className="relative z-10 flex flex-col items-center">
+            <div className="flex items-center gap-2 mb-6">
+              <span className="bg-emerald-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
+                {todayPlan.isRest ? t.restDay : t.trainingDay}
+              </span>
+              <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">{todayPlan.day}</span>
             </div>
-            <div className="text-left flex-1">
-              <h4 className="font-bold text-zinc-900 text-sm">今日打卡</h4>
-              <div className="flex gap-1 mt-1.5">
-                {last7Days.map(date => (
-                  <div 
-                    key={date} 
-                    className={`w-2 h-2 rounded-full ${activeDays.has(date) ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' : 'bg-zinc-100'}`}
-                    title={date}
-                  />
-                ))}
-              </div>
-              {!profile?.lastCheckIn?.includes(new Date().toISOString().split('T')[0]) && (
-                <button 
-                  onClick={handleCheckIn}
-                  className="mt-2 text-[10px] font-black text-emerald-600 uppercase tracking-widest hover:underline"
-                >
-                  立即签到 +50 XP
-                </button>
+            <h2 className="text-5xl font-display font-bold leading-tight mb-6">
+              {todayPlan.focus}
+            </h2>
+            <p className="text-zinc-400 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
+              {language === 'zh' ? (
+                <>
+                  明白，我懂了！你现在的动力非常足，想要更有挑战性、密度更高的训练。
+                  采用<span className="text-white font-bold">“循环训练法”</span>，挑战你的极限。
+                </>
+              ) : (
+                <>
+                  I get it! You're highly motivated and want more challenging, high-density training.
+                  Using <span className="text-white font-bold">"Circuit Training"</span> to push your limits.
+                </>
               )}
-            </div>
+            </p>
+            <motion.button 
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              onClick={() => startWorkout()}
+              className="w-full max-w-xs bg-emerald-500 hover:bg-emerald-400 text-white py-5 rounded-[2rem] font-black text-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-3 transition-colors"
+            >
+              <Play className="w-6 h-6 fill-current" />
+              {t.startWorkout}
+            </motion.button>
           </div>
-          <div className="flex gap-4">
-            <div className="w-12 h-12 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0">
-              <Trophy className="w-6 h-6 text-indigo-600" />
-            </div>
-            <div className="text-left">
-              <h4 className="font-bold text-zinc-900 text-sm">成长预测</h4>
-              <p className="text-xs text-zinc-500 mt-0.5">根据你的表现，下周<span className="text-indigo-600 font-bold">{prediction.exercise}</span>预计可提升 {prediction.value}。</p>
-            </div>
+          <div className="absolute -right-8 -bottom-8 opacity-10">
+            <Flame size={200} />
           </div>
-        </div>
-      </section>
+        </section>
 
-      <section className="bg-zinc-50 rounded-3xl p-6 border border-zinc-200">
-        <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 mb-4 flex items-center gap-2">
-          <Target className="w-4 h-4 text-emerald-500" /> 每日目标
-        </h3>
-        <div className="space-y-3">
-          {[
-            { id: 'goal1', text: '完成 3 组正式训练', xp: 50, done: userLogs.filter(l => l.date.includes(new Date().toISOString().split('T')[0])).length >= 3 },
-            { id: 'goal2', text: '训练时长超过 15 分钟', xp: 100, done: false },
-            { id: 'goal3', text: '在休息阶段手动记录数据', xp: 30, done: false },
-          ].map(goal => (
-            <div key={goal.id} className="flex items-center justify-between bg-white p-3 rounded-2xl border border-zinc-100 shadow-sm">
-              <div className="flex items-center gap-3">
-                {goal.done ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <div className="w-4 h-4 rounded-full border-2 border-zinc-200" />}
-                <span className={`text-xs font-bold ${goal.done ? 'text-zinc-400 line-through' : 'text-zinc-700'}`}>{goal.text}</span>
+        {/* Hotspots / 热点 */}
+        <section className="bg-white rounded-[2.5rem] p-8 border border-zinc-200 shadow-sm overflow-hidden relative">
+          <div className="flex items-center gap-2 mb-8">
+            <div className="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-4 h-4 text-emerald-500" />
+            </div>
+            <h3 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400">{t.dailyHotspots}</h3>
+          </div>
+          
+          <div className="space-y-8">
+            <div className="flex gap-5">
+              <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                <Flame className="w-7 h-7 text-amber-500" />
               </div>
-              <span className="text-[10px] font-black text-emerald-600">+{goal.xp} XP</span>
+              <div className="text-left flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="font-bold text-zinc-900 text-base">{t.checkIn}</h4>
+                  <span className="text-[10px] font-black text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full uppercase">Streak: {profile?.streak || 0}</span>
+                </div>
+                <div className="flex gap-1.5 mb-4">
+                  {last7Days.map(date => (
+                    <div 
+                      key={date} 
+                      className={`w-2.5 h-2.5 rounded-full transition-all duration-500 ${activeDays.has(date) ? 'bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.6)] scale-110' : 'bg-zinc-100'}`}
+                      title={date}
+                    />
+                  ))}
+                </div>
+                {!profile?.lastCheckIn?.includes(new Date().toISOString().split('T')[0]) && (
+                  <motion.button 
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleCheckIn}
+                    className="w-full bg-zinc-900 text-white py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl shadow-zinc-200 active:bg-black transition-all flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                    {t.checkInNow} +50 XP
+                  </motion.button>
+                )}
+              </div>
             </div>
-          ))}
-        </div>
-      </section>
 
-      <section className="bg-zinc-900 text-white rounded-[2.5rem] p-8 shadow-xl relative overflow-hidden text-center">
-        <div className="relative z-10 flex flex-col items-center">
-          <div className="flex items-center gap-2 mb-6">
-            <span className="bg-emerald-500 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest">
-              {todayPlan.isRest ? '休息日' : '训练日'}
-            </span>
-            <span className="text-zinc-500 text-[10px] font-bold uppercase tracking-widest">{todayPlan.day}</span>
+            <div className="h-px bg-zinc-100 w-full" />
+
+            <div className="flex gap-5">
+              <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center shrink-0 shadow-inner">
+                <Trophy className="w-7 h-7 text-indigo-600" />
+              </div>
+              <div className="text-left flex-1">
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="font-bold text-zinc-900 text-base">{t.growthPrediction}</h4>
+                  <button 
+                    onClick={() => setActiveTab('profile')}
+                    className="flex items-center gap-1 text-[10px] font-black text-indigo-600 uppercase tracking-widest bg-indigo-50 px-2 py-1 rounded-lg hover:bg-indigo-100 transition-colors"
+                  >
+                    <UserIcon className="w-3 h-3" />
+                    {t.addFriendQuick}
+                  </button>
+                </div>
+                <div className="bg-zinc-50 rounded-2xl p-3 border border-zinc-100">
+                  {prediction ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-zinc-500">
+                        {language === 'zh' ? '针对' : 'For'} <span className="text-indigo-600 font-bold">{prediction.exercise}</span>:
+                      </p>
+                      <div className="flex gap-4">
+                        <div>
+                          <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest">{t.maxSet}</p>
+                          <p className="text-sm font-black text-zinc-900">{prediction.maxSet}{prediction.unit}</p>
+                        </div>
+                        <div className="w-px h-8 bg-zinc-200" />
+                        <div>
+                          <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest">{t.predictedSet}</p>
+                          <p className="text-sm font-black text-emerald-600">+{prediction.predictedNext}{prediction.unit}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-xs text-zinc-500 leading-relaxed">
+                      {language === 'zh' ? '开始你的第一次训练以查看成长预测' : 'Start your first workout to see growth predictions'}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-          <h2 className="text-5xl font-display font-bold leading-tight mb-6">
-            {todayPlan.focus}
-          </h2>
-          <p className="text-zinc-400 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
-            明白，我懂了！你现在的动力非常足，想要更有挑战性、密度更高的训练。
-            采用<span className="text-white font-bold">“循环训练法”</span>，挑战你的极限。
-          </p>
-          <motion.button 
-            whileHover={{ scale: 1.02 }}
-            whileTap={{ scale: 0.98 }}
-            onClick={() => startWorkout()}
-            className="w-full max-w-xs bg-emerald-500 hover:bg-emerald-400 text-white py-5 rounded-[2rem] font-black text-xl shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-3 transition-colors"
-          >
-            <Play className="w-6 h-6 fill-current" />
-            立即开始
-          </motion.button>
-        </div>
-        <div className="absolute -right-8 -bottom-8 opacity-10">
-          <Flame size={200} />
-        </div>
-      </section>
+        </section>
+
+        <section className="bg-zinc-50 rounded-3xl p-6 border border-zinc-200">
+          <h3 className="text-xs font-black uppercase tracking-widest text-zinc-400 mb-4 flex items-center gap-2">
+            <Target className="w-4 h-4 text-emerald-500" /> {t.dailyGoals}
+          </h3>
+          <div className="space-y-3">
+            {[
+              { id: 'goal1', text: t.goal1, xp: 50, done: userLogs.filter(l => l.date.includes(new Date().toISOString().split('T')[0])).length >= 3 },
+              { id: 'goal2', text: t.goal2, xp: 100, done: false },
+              { id: 'goal3', text: t.goal3, xp: 30, done: false },
+            ].map(goal => (
+              <div key={goal.id} className="flex items-center justify-between bg-white p-3 rounded-2xl border border-zinc-100 shadow-sm">
+                <div className="flex items-center gap-3">
+                  {goal.done ? <CheckCircle2 className="w-4 h-4 text-emerald-500" /> : <div className="w-4 h-4 rounded-full border-2 border-zinc-200" />}
+                  <span className={`text-xs font-bold ${goal.done ? 'text-zinc-400 line-through' : 'text-zinc-700'}`}>{goal.text}</span>
+                </div>
+                <span className="text-[10px] font-black text-emerald-600">+{goal.xp} XP</span>
+              </div>
+            ))}
+          </div>
+        </section>
 
       {todayPlan.isCircuit && (
         <section className="bg-zinc-100 rounded-2xl p-4 border border-zinc-200">
           <h4 className="text-xs font-bold text-zinc-500 uppercase tracking-wider mb-3 flex items-center gap-2">
-            <Zap className="w-3 h-3" /> 循环训练指南 (30分钟)
+            <Zap className="w-3 h-3" /> {t.circuitGuide} (30min)
           </h4>
           <div className="grid grid-cols-3 gap-2 text-center">
             <div className="bg-white p-2 rounded-xl border border-zinc-200">
-              <p className="text-[10px] text-zinc-400 uppercase font-bold">工作</p>
+              <p className="text-[10px] text-zinc-400 uppercase font-bold">{t.work}</p>
               <p className="text-lg font-display font-bold text-zinc-900">45s</p>
             </div>
             <div className="bg-white p-2 rounded-xl border border-zinc-200">
-              <p className="text-[10px] text-zinc-400 uppercase font-bold">休息</p>
+              <p className="text-[10px] text-zinc-400 uppercase font-bold">{t.rest}</p>
               <p className="text-lg font-display font-bold text-zinc-900">15s</p>
             </div>
             <div className="bg-white p-2 rounded-xl border border-zinc-200 relative group">
-              <p className="text-[10px] text-zinc-400 uppercase font-bold">大循环数</p>
+              <p className="text-[10px] text-zinc-400 uppercase font-bold">{t.rounds}</p>
               <input 
                 type="number" 
                 value={totalRounds}
@@ -850,11 +1083,11 @@ export default function App() {
                 className="w-full text-center text-lg font-display font-bold text-emerald-600 bg-transparent border-none focus:ring-0 p-0"
               />
               <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-zinc-900 text-white text-[8px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                点击修改循环次数
+                {t.clickToEdit}
               </div>
             </div>
           </div>
-          <p className="text-[10px] text-zinc-500 mt-3 text-center italic">每轮结束后休息 90 秒</p>
+          <p className="text-[10px] text-zinc-500 mt-3 text-center italic">{t.restAfterRound}</p>
         </section>
       )}
 
@@ -862,7 +1095,7 @@ export default function App() {
         <div className="space-y-4">
           <h3 className="text-lg font-display font-bold px-1 flex items-center gap-2">
             <span className="w-1.5 h-6 bg-amber-400 rounded-full" />
-            热身阶段 (5分钟)
+            {t.warmupPhase} (5min)
           </h3>
           <div className="grid gap-3">
             {todayPlan.warmup?.map((ex) => (
@@ -890,7 +1123,7 @@ export default function App() {
         <div className="space-y-4">
           <h3 className="text-lg font-display font-bold px-1 flex items-center gap-2">
             <span className="w-1.5 h-6 bg-emerald-500 rounded-full" />
-            正式训练
+            {t.mainTraining}
           </h3>
           <div className="grid gap-3">
             {todayPlan.exercises.map((ex) => (
@@ -918,7 +1151,7 @@ export default function App() {
         <div className="space-y-4">
           <h3 className="text-lg font-display font-bold px-1 flex items-center gap-2">
             <span className="w-1.5 h-6 bg-indigo-400 rounded-full" />
-            拉伸放松 (5分钟)
+            {t.cooldownPhase} (5min)
           </h3>
           <div className="grid gap-3">
             {todayPlan.cooldown?.map((ex) => (
@@ -948,9 +1181,9 @@ export default function App() {
         <div className="flex gap-3">
           <Info className="w-5 h-5 text-amber-600 shrink-0" />
           <div>
-            <h4 className="font-bold text-amber-900 text-sm">重要提醒</h4>
+            <h4 className="font-bold text-amber-900 text-sm">{t.importantReminder}</h4>
             <p className="text-amber-800 text-xs mt-1 leading-relaxed">
-              训练前请务必进行 5 分钟热身。如果在训练过程中感到关节疼痛（非肌肉酸痛），请立即停止。
+              {t.reminderDesc}
             </p>
           </div>
         </div>
@@ -977,7 +1210,7 @@ export default function App() {
             }`}
           >
             <span className="text-[10px] font-bold uppercase">{plan.day.replace('周', '')}</span>
-            <span className="text-lg font-display font-bold mt-1">{plan.day === todayPlan.day ? '今' : plan.day.slice(-1)}</span>
+            <span className="text-lg font-display font-bold mt-1">{plan.day === todayPlan.day ? (language === 'zh' ? '今' : 'T') : plan.day.slice(-1)}</span>
             {plan.isRest && <div className="w-1 h-1 bg-amber-400 rounded-full mt-1" />}
           </button>
         ))}
@@ -988,13 +1221,13 @@ export default function App() {
           <div className="flex items-center justify-between px-1">
             <h3 className="text-xl font-display font-bold">{selectedDay.focus}</h3>
             {selectedDay.isRest && (
-              <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold uppercase">休息日</span>
+              <span className="bg-amber-100 text-amber-700 px-2 py-1 rounded text-[10px] font-bold uppercase">{t.restDay}</span>
             )}
           </div>
           
           <div className="space-y-6">
             <div className="space-y-3">
-              <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider px-1">热身</h4>
+              <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider px-1">{t.warmupPhase}</h4>
               <div className="grid gap-3">
                 {selectedDay.warmup?.map((ex) => (
                   <button
@@ -1022,7 +1255,7 @@ export default function App() {
             </div>
 
             <div className="space-y-3">
-              <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider px-1">正式训练</h4>
+              <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider px-1">{t.mainTraining}</h4>
               <div className="grid gap-3">
                 {selectedDay.exercises.map((ex) => (
                   <button
@@ -1046,7 +1279,7 @@ export default function App() {
             </div>
 
             <div className="space-y-3">
-              <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider px-1">拉伸</h4>
+              <h4 className="text-sm font-bold text-zinc-400 uppercase tracking-wider px-1">{t.cooldownPhase}</h4>
               <div className="grid gap-3">
                 {selectedDay.cooldown?.map((ex) => (
                   <button
@@ -1086,9 +1319,9 @@ export default function App() {
     >
       <section className="bg-emerald-500 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
         <div className="relative z-10">
-          <h2 className="text-3xl font-display font-bold mb-2">🥗 30 分钟“魔鬼训练”后的营养公式</h2>
+          <h2 className="text-3xl font-display font-bold mb-2">🥗 {language === 'zh' ? '30 分钟“魔鬼训练”后的营养公式' : '30-Minute Post-Workout Nutrition Formula'}</h2>
           <p className="text-emerald-100 text-sm leading-relaxed">
-            因为你的强度上来了，55kg 的体重必须摄入足够的建筑材料。
+            {language === 'zh' ? '因为你的强度上来了，55kg 的体重必须摄入足够的建筑材料。' : 'As your intensity increases, your 55kg body needs sufficient building materials.'}
           </p>
         </div>
         <Utensils className="absolute -right-4 -bottom-4 w-32 h-32 text-white/10" />
@@ -1117,16 +1350,20 @@ export default function App() {
       <section className="bg-zinc-900 text-white p-8 rounded-[2.5rem] shadow-xl">
         <div className="flex items-center gap-3 mb-4">
           <Moon className="w-6 h-6 text-indigo-400" />
-          <h4 className="font-bold">睡眠是关键</h4>
+          <h4 className="font-bold">{language === 'zh' ? '睡眠是关键' : 'Sleep is Key'}</h4>
         </div>
         <p className="text-zinc-400 text-sm leading-relaxed">
-          生长激素主要在深层睡眠中分泌，建议每晚保证 <span className="text-white font-bold">9-10 小时</span> 睡眠。睡前 1 小时尽量不看电子产品。
+          {language === 'zh' ? (
+            <>生长激素主要在深层睡眠中分泌，建议每晚保证 <span className="text-white font-bold">9-10 小时</span> 睡眠。睡前 1 小时尽量不看电子产品。</>
+          ) : (
+            <>Growth hormone is primarily secreted during deep sleep. It is recommended to get <span className="text-white font-bold">9-10 hours</span> of sleep every night. Avoid electronic devices 1 hour before bed.</>
+          )}
         </p>
       </section>
 
       <section className="bg-zinc-100 rounded-[2.5rem] p-6 border border-zinc-200">
         <h4 className="text-sm font-bold text-zinc-900 mb-4 flex items-center gap-2">
-          <Volume2 className="w-4 h-4 text-emerald-500" /> 训练背景音乐
+          <Volume2 className="w-4 h-4 text-emerald-500" /> {language === 'zh' ? '训练背景音乐' : 'Workout Background Music'}
         </h4>
         <iframe 
           style={{ borderRadius: '12px' }} 
@@ -1163,7 +1400,7 @@ export default function App() {
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-zinc-400" />
             <input 
               type="text" 
-              placeholder="搜索动作或肌肉部位..." 
+              placeholder={language === 'zh' ? '搜索动作或肌肉部位...' : 'Search exercises or muscles...'} 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full bg-white border border-zinc-200 rounded-2xl py-4 pl-12 pr-4 text-zinc-900 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 transition-all"
@@ -1181,7 +1418,7 @@ export default function App() {
                     : 'bg-white text-zinc-500 border border-zinc-200'
                 }`}
               >
-                {cat === 'All' ? '全部' : cat}
+                {cat === 'All' ? (language === 'zh' ? '全部' : 'All') : cat}
               </button>
             ))}
           </div>
@@ -1190,7 +1427,7 @@ export default function App() {
         <section className="space-y-4">
           <h3 className="text-lg font-display font-bold px-1 flex items-center gap-2">
             <Library className="w-5 h-5 text-emerald-500" />
-            推荐训练集
+            {t.library}
           </h3>
           <div className="grid gap-4">
             {WORKOUT_SETS.map(set => (
@@ -1213,7 +1450,7 @@ export default function App() {
                   </span>
                 </div>
                 <div className="flex items-center gap-4 text-xs text-zinc-400">
-                  <span className="flex items-center gap-1"><Dumbbell className="w-3 h-3" /> {set.exercises.length} 动作</span>
+                  <span className="flex items-center gap-1"><Dumbbell className="w-3 h-3" /> {set.exercises.length} {language === 'zh' ? '动作' : 'Exercises'}</span>
                   <span className="flex items-center gap-1"><Target className="w-3 h-3" /> {set.category}</span>
                 </div>
               </motion.button>
@@ -1224,7 +1461,7 @@ export default function App() {
         <section className="space-y-4">
           <h3 className="text-lg font-display font-bold px-1 flex items-center gap-2">
             <Dumbbell className="w-5 h-5 text-emerald-500" />
-            动作库 ({filteredExercises.length})
+            {language === 'zh' ? `动作库 (${filteredExercises.length})` : `Exercise Library (${filteredExercises.length})`}
           </h3>
           <div className="grid grid-cols-2 gap-3">
             {filteredExercises.map(ex => (
@@ -1234,14 +1471,12 @@ export default function App() {
                 onClick={() => setSelectedExercise(ex)}
                 className="bg-white rounded-3xl border border-zinc-200 overflow-hidden shadow-sm group"
               >
-                <div className="aspect-square bg-zinc-900 relative overflow-hidden">
-                  <img 
-                    src={`https://picsum.photos/seed/${ex.id}/400/400`} 
-                    alt={ex.name}
-                    className="absolute inset-0 w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-500"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                <div className="aspect-square bg-zinc-100 relative overflow-hidden">
+                  <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 to-indigo-500/5" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <Activity className="w-8 h-8 text-zinc-300 group-hover:scale-110 transition-transform duration-500" />
+                  </div>
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
                   <div className="absolute top-2 right-2">
                     <span className="bg-black/50 backdrop-blur-md text-white text-[8px] font-black uppercase px-1.5 py-0.5 rounded">
                       {ex.category}
@@ -1356,16 +1591,13 @@ export default function App() {
         </button>
 
         <div className="space-y-8">
-          <div className="aspect-video bg-zinc-900 rounded-3xl flex items-center justify-center relative overflow-hidden shadow-2xl">
-            <img 
-              src={`https://picsum.photos/seed/${ex.id}/800/450`} 
-              alt={ex.name}
-              className="absolute inset-0 w-full h-full object-cover opacity-60"
-              referrerPolicy="no-referrer"
-            />
-            <div className="relative z-10 text-white text-center p-6">
-              <Activity className="w-12 h-12 mx-auto mb-4 text-emerald-400" />
-              <p className="text-xs font-black uppercase tracking-[0.2em] opacity-80">TeenGrowth Pro</p>
+          <div className="aspect-video bg-zinc-100 rounded-3xl flex items-center justify-center relative overflow-hidden shadow-inner border border-zinc-200">
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/10 to-indigo-500/10" />
+            <div className="relative z-10 text-center p-6">
+              <div className="w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mx-auto mb-4">
+                <Activity className="w-8 h-8 text-emerald-500" />
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400">TeenGrowth Pro · 动作演示</p>
             </div>
           </div>
 
@@ -1587,9 +1819,28 @@ export default function App() {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black text-emerald-500">{log.value}{log.type === 'seconds' ? 's' : '次'}</p>
-                      <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">Performance</p>
+                    <div className="text-right flex items-center gap-3">
+                      <div>
+                        <p className="text-sm font-black text-emerald-500">
+                          {log.value}{log.type === 'seconds' ? 's' : (MASTER_EXERCISE_LIBRARY.find(e => e.id === log.exerciseId)?.equipment === 'None' ? (language === 'zh' ? '次' : 'reps') : 'kg')}
+                        </p>
+                        <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">Performance</p>
+                      </div>
+                      <button 
+                        onClick={async () => {
+                          if (window.confirm(language === 'zh' ? '确定要删除这条记录吗？' : 'Are you sure you want to delete this log?')) {
+                            try {
+                              await deleteDoc(doc(db, 'logs', log.id));
+                              setUserLogs(prev => prev.filter(l => l.id !== log.id));
+                            } catch (error) {
+                              handleFirestoreError(error, OperationType.DELETE, 'logs');
+                            }
+                          }
+                        }}
+                        className="p-2 text-zinc-300 hover:text-rose-500 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
                 );
@@ -1602,13 +1853,164 @@ export default function App() {
               )}
             </div>
           </section>
+          <section className="bg-white p-6 rounded-[2.5rem] border border-zinc-200 shadow-sm">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-display font-bold">{t.friends}</h3>
+              <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
+                <Users className="w-3 h-3" /> {friendsList.length}
+              </div>
+            </div>
+            
+            <div className="space-y-6">
+              {/* Search Users Section */}
+              <div className="bg-zinc-50 p-5 rounded-3xl border border-zinc-100 space-y-4">
+                <h4 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400 flex items-center gap-2">
+                  <Search className="w-3 h-3" /> {language === 'zh' ? '发现新伙伴' : 'Discover New Friends'}
+                </h4>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
+                    <input 
+                      type="text"
+                      placeholder={language === 'zh' ? '输入用户名搜索...' : 'Search by username...'}
+                      value={searchUsername}
+                      onChange={(e) => setSearchUsername(e.target.value)}
+                      className="w-full bg-white border border-zinc-200 rounded-2xl py-3 pl-10 text-sm focus:ring-2 focus:ring-emerald-500 transition-all"
+                    />
+                  </div>
+                  <motion.button 
+                    whileTap={{ scale: 0.95 }}
+                    onClick={searchUsers}
+                    disabled={isSearching}
+                    className="bg-zinc-900 text-white px-6 rounded-2xl text-xs font-bold disabled:opacity-50 shadow-lg shadow-zinc-200"
+                  >
+                    {isSearching ? '...' : t.searchFriends}
+                  </motion.button>
+                </div>
+
+                {/* Search Results */}
+                {searchResults.length > 0 ? (
+                  <div className="space-y-2 pt-2">
+                    {searchResults.map(res => (
+                      <motion.div 
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        key={res.uid} 
+                        className="flex items-center justify-between bg-white p-3 rounded-2xl border border-zinc-100 shadow-sm"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-zinc-50 rounded-xl flex items-center justify-center">
+                            <UserIcon className="w-5 h-5 text-zinc-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-zinc-900">{res.displayName}</p>
+                            <p className="text-[10px] text-zinc-400">Level {res.level || 1}</p>
+                          </div>
+                        </div>
+                        <motion.button 
+                          whileTap={{ scale: 0.9 }}
+                          onClick={() => sendFriendRequest(res.uid)}
+                          className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20"
+                        >
+                          {t.addFriend}
+                        </motion.button>
+                      </motion.div>
+                    ))}
+                  </div>
+                ) : searchUsername && !isSearching && (
+                  <p className="text-[10px] text-zinc-400 text-center py-2 italic">
+                    {language === 'zh' ? '未找到用户' : 'No users found'}
+                  </p>
+                )}
+              </div>
+
+              {/* Friend Requests */}
+              {friendRequests.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2">{t.friendRequests}</p>
+                  {friendRequests.map(req => (
+                    <div key={req.id} className="flex items-center justify-between bg-amber-50 p-3 rounded-2xl border border-amber-100">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
+                          <UserIcon className="w-4 h-4 text-zinc-400" />
+                        </div>
+                        <div>
+                          <p className="text-xs font-bold text-zinc-900">{req.fromName}</p>
+                          <p className="text-[8px] text-zinc-400">{t.pending}</p>
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button 
+                          onClick={() => handleFriendRequest(req.id, 'accepted')}
+                          className="bg-emerald-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold"
+                        >
+                          {t.accept}
+                        </button>
+                        <button 
+                          onClick={() => handleFriendRequest(req.id, 'rejected')}
+                          className="bg-zinc-200 text-zinc-600 px-2 py-1 rounded-lg text-[10px] font-bold"
+                        >
+                          {t.reject}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Friends List */}
+              <div className="space-y-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2">{t.myFriends}</p>
+                {friendsList.length > 0 ? (
+                  friendsList.map(friend => (
+                    <div key={friend.uid} className="flex items-center justify-between bg-white p-3 rounded-2xl border border-zinc-100 shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-zinc-50 rounded-full flex items-center justify-center">
+                          <UserIcon className="w-5 h-5 text-zinc-400" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-bold text-zinc-900">{friend.displayName}</p>
+                          <p className="text-[10px] text-zinc-400">Level {friend.level || 1} · {friend.xp || 0} XP</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{friend.streak || 0} DAY STREAK</p>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-xs text-zinc-400 text-center py-4 italic">{t.noFriends}</p>
+                )}
+              </div>
+            </div>
+          </section>
+
+          <section className="bg-white p-6 rounded-[2.5rem] border border-zinc-200 shadow-sm">
+            <h3 className="text-xl font-display font-bold mb-6">{t.settings}</h3>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between p-4 bg-zinc-50 rounded-2xl border border-zinc-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
+                    <LayoutGrid className="w-4 h-4 text-zinc-400" />
+                  </div>
+                  <span className="text-sm font-bold text-zinc-700">{t.language}</span>
+                </div>
+                <button 
+                  onClick={toggleLanguage}
+                  className="bg-zinc-900 text-white px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-widest"
+                >
+                  {language === 'zh' ? 'English' : '中文'}
+                </button>
+              </div>
+            </div>
+          </section>
         </>
       )}
     </motion.div>
   );
 
   return (
-    <div className="min-h-screen bg-zinc-50 pb-24">
+    <div className="min-h-screen bg-zinc-50 pb-32">
       {renderHeader()}
 
       <main className="max-w-md mx-auto px-6 pt-6">
@@ -1621,43 +2023,48 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t border-zinc-200 px-6 py-3 z-40">
+      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-zinc-200 px-6 pt-3 pb-6 z-[100] shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
         <div className="max-w-md mx-auto flex items-center justify-around">
-          <button 
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
             onClick={() => setActiveTab('today')}
             className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'today' ? 'text-zinc-900' : 'text-zinc-400'}`}
           >
             <Flame className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase">今日</span>
-          </button>
-          <button 
+            <span className="text-[10px] font-bold uppercase tracking-tight">{t.today}</span>
+          </motion.button>
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
             onClick={() => setActiveTab('schedule')}
             className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'schedule' ? 'text-zinc-900' : 'text-zinc-400'}`}
           >
             <Calendar className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase">计划</span>
-          </button>
-          <button 
+            <span className="text-[10px] font-bold uppercase tracking-tight">{t.schedule}</span>
+          </motion.button>
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
             onClick={() => setActiveTab('library')}
             className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'library' ? 'text-zinc-900' : 'text-zinc-400'}`}
           >
             <Library className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase">库</span>
-          </button>
-          <button 
+            <span className="text-[10px] font-bold uppercase tracking-tight">{t.library}</span>
+          </motion.button>
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
             onClick={() => setActiveTab('nutrition')}
             className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'nutrition' ? 'text-zinc-900' : 'text-zinc-400'}`}
           >
             <Utensils className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase">营养</span>
-          </button>
-          <button 
+            <span className="text-[10px] font-bold uppercase tracking-tight">{t.nutrition}</span>
+          </motion.button>
+          <motion.button 
+            whileTap={{ scale: 0.9 }}
             onClick={() => setActiveTab('profile')}
             className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'profile' ? 'text-zinc-900' : 'text-zinc-400'}`}
           >
             <UserIcon className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase">我的</span>
-          </button>
+            <span className="text-[10px] font-bold uppercase tracking-tight">{t.profile}</span>
+          </motion.button>
         </div>
       </nav>
 

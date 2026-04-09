@@ -11,9 +11,24 @@
         "xp": { "type": "number", "description": "Total experience points earned." },
         "streak": { "type": "number", "description": "Current daily check-in streak." },
         "lastCheckIn": { "type": "string", "format": "date-time", "description": "ISO timestamp of the last check-in." },
-        "level": { "type": "number", "description": "User's current fitness level." }
+        "level": { "type": "number", "description": "User's current fitness level." },
+        "language": { "type": "string", "enum": ["zh", "en"], "default": "zh" },
+        "friends": { "type": "array", "items": { "type": "string" }, "description": "List of friend UIDs." },
+        "completedGoals": { "type": "array", "items": { "type": "string" }, "description": "List of goal IDs completed today (e.g. goal1_2026-04-09)." }
       },
       "required": ["uid", "email"]
+    },
+    "FriendRequest": {
+      "title": "Friend Request",
+      "description": "Tracks pending friend requests between users.",
+      "type": "object",
+      "properties": {
+        "from": { "type": "string", "description": "UID of the sender." },
+        "to": { "type": "string", "description": "UID of the receiver." },
+        "status": { "type": "string", "enum": ["pending", "accepted", "rejected"] },
+        "timestamp": { "type": "string", "format": "date-time" }
+      },
+      "required": ["from", "to", "status", "timestamp"]
     },
     "ExerciseLog": {
       "title": "Exercise Log",
@@ -36,6 +51,10 @@
     "/users/{userId}/logs/{logId}": {
       "schema": "ExerciseLog",
       "description": "Historical performance logs for exercises."
+    },
+    "/friendRequests/{requestId}": {
+      "schema": "FriendRequest",
+      "description": "Pending and historical friend requests."
     }
   }
 }
