@@ -870,7 +870,14 @@ export default function App() {
 
     // Dynamic Growth Prediction
     const getPrediction = () => {
-      if (userLogs.length < 3) return null;
+      if (userLogs.length === 0) {
+        return {
+          exercise: language === 'zh' ? '尚未开始' : 'Not started',
+          maxSet: '---',
+          predictedNext: '---',
+          unit: ''
+        };
+      }
       
       const exerciseGroups: Record<string, any[]> = {};
       userLogs.forEach(log => {
@@ -878,7 +885,7 @@ export default function App() {
         exerciseGroups[log.exerciseId].push(log);
       });
       
-      let bestExId = 'squats';
+      let bestExId = Object.keys(exerciseGroups)[0] || 'squats';
       let maxLogs = 0;
       Object.entries(exerciseGroups).forEach(([id, logs]) => {
         if (logs.length > maxLogs) {
@@ -892,13 +899,12 @@ export default function App() {
       const lastLog = logs[0];
       const maxVal = Math.max(...logs.map(l => l.value));
       
-      const isBodyweight = ex?.equipment === 'None' || ex?.name.includes('俯卧撑') || ex?.name.includes('深蹲');
-      const unit = lastLog.type === 'seconds' ? 's' : (isBodyweight ? (language === 'zh' ? '次' : 'reps') : 'kg');
+      const unit = lastLog.type === 'seconds' ? 's' : '';
 
       return {
         exercise: ex?.name || bestExId,
         maxSet: maxVal,
-        predictedNext: lastLog.type === 'seconds' ? maxVal + 5 : (isBodyweight ? maxVal + 2 : maxVal + 2.5),
+        predictedNext: lastLog.type === 'seconds' ? maxVal + 5 : maxVal + 2,
         type: lastLog.type,
         unit
       };
@@ -1024,7 +1030,9 @@ export default function App() {
                         <div className="w-px h-8 bg-zinc-200" />
                         <div>
                           <p className="text-[8px] text-zinc-400 font-black uppercase tracking-widest">{t.predictedSet}</p>
-                          <p className="text-sm font-black text-emerald-600">+{prediction.predictedNext}{prediction.unit}</p>
+                          <p className="text-sm font-black text-emerald-600">
+                            {prediction.predictedNext === '---' ? '---' : `+${prediction.predictedNext}${prediction.unit}`}
+                          </p>
                         </div>
                       </div>
                     </div>
@@ -1822,7 +1830,7 @@ export default function App() {
                     <div className="text-right flex items-center gap-3">
                       <div>
                         <p className="text-sm font-black text-emerald-500">
-                          {log.value}{log.type === 'seconds' ? 's' : (MASTER_EXERCISE_LIBRARY.find(e => e.id === log.exerciseId)?.equipment === 'None' ? (language === 'zh' ? '次' : 'reps') : 'kg')}
+                          {log.value}{log.type === 'seconds' ? 's' : ''}
                         </p>
                         <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">Performance</p>
                       </div>
@@ -2023,52 +2031,54 @@ export default function App() {
         </AnimatePresence>
       </main>
 
-      <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-zinc-200 px-6 pt-3 pb-6 z-[100] shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
-        <div className="max-w-md mx-auto flex items-center justify-around">
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setActiveTab('today')}
-            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'today' ? 'text-zinc-900' : 'text-zinc-400'}`}
-          >
-            <Flame className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-tight">{t.today}</span>
-          </motion.button>
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setActiveTab('schedule')}
-            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'schedule' ? 'text-zinc-900' : 'text-zinc-400'}`}
-          >
-            <Calendar className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-tight">{t.schedule}</span>
-          </motion.button>
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setActiveTab('library')}
-            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'library' ? 'text-zinc-900' : 'text-zinc-400'}`}
-          >
-            <Library className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-tight">{t.library}</span>
-          </motion.button>
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setActiveTab('nutrition')}
-            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'nutrition' ? 'text-zinc-900' : 'text-zinc-400'}`}
-          >
-            <Utensils className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-tight">{t.nutrition}</span>
-          </motion.button>
-          <motion.button 
-            whileTap={{ scale: 0.9 }}
-            onClick={() => setActiveTab('profile')}
-            className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'profile' ? 'text-zinc-900' : 'text-zinc-400'}`}
-          >
-            <UserIcon className="w-6 h-6" />
-            <span className="text-[10px] font-bold uppercase tracking-tight">{t.profile}</span>
-          </motion.button>
-        </div>
-      </nav>
+      {workoutState === 'idle' && !selectedExercise && !selectedSet && (
+        <nav className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-xl border-t border-zinc-200 px-6 pt-3 pb-6 z-[100] shadow-[0_-8px_30px_rgba(0,0,0,0.08)]">
+          <div className="max-w-md mx-auto flex items-center justify-around">
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setActiveTab('today')}
+              className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'today' ? 'text-zinc-900' : 'text-zinc-400'}`}
+            >
+              <Flame className="w-6 h-6" />
+              <span className="text-[10px] font-bold uppercase tracking-tight">{t.today}</span>
+            </motion.button>
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setActiveTab('schedule')}
+              className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'schedule' ? 'text-zinc-900' : 'text-zinc-400'}`}
+            >
+              <Calendar className="w-6 h-6" />
+              <span className="text-[10px] font-bold uppercase tracking-tight">{t.schedule}</span>
+            </motion.button>
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setActiveTab('library')}
+              className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'library' ? 'text-zinc-900' : 'text-zinc-400'}`}
+            >
+              <Library className="w-6 h-6" />
+              <span className="text-[10px] font-bold uppercase tracking-tight">{t.library}</span>
+            </motion.button>
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setActiveTab('nutrition')}
+              className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'nutrition' ? 'text-zinc-900' : 'text-zinc-400'}`}
+            >
+              <Utensils className="w-6 h-6" />
+              <span className="text-[10px] font-bold uppercase tracking-tight">{t.nutrition}</span>
+            </motion.button>
+            <motion.button 
+              whileTap={{ scale: 0.9 }}
+              onClick={() => setActiveTab('profile')}
+              className={`flex flex-col items-center gap-1 transition-colors ${activeTab === 'profile' ? 'text-zinc-900' : 'text-zinc-400'}`}
+            >
+              <UserIcon className="w-6 h-6" />
+              <span className="text-[10px] font-bold uppercase tracking-tight">{t.profile}</span>
+            </motion.button>
+          </div>
+        </nav>
+      )}
 
-      <Chatbot />
+      {workoutState === 'idle' && !selectedExercise && !selectedSet && <Chatbot />}
 
       <AnimatePresence>
         {selectedExercise && renderExerciseDetail(selectedExercise)}
