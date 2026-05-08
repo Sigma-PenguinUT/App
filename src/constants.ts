@@ -414,6 +414,70 @@ export const MASTER_EXERCISE_LIBRARY: Exercise[] = [
       { step: '下放', instruction: '缓慢下放双腿。', audioCue: '慢慢放下' }
     ]
   },
+  // NEW MUSCLE BUILDING EXERCISES
+  {
+    id: 'pull-ups',
+    name: '引体向上 (Pull-ups)',
+    description: '双手正握单杠，略宽于肩。背部发力将身体拉起，直到下巴超过单杠。',
+    sets: '3 组',
+    reps: '力竭',
+    tips: ['增加背部宽度', '大圆肌、背阔肌发力', '控制离心下放'],
+    category: 'Upper Pull',
+    equipment: 'Bar',
+    targetMuscles: ['Back', 'Biceps', 'Lats'],
+    demonstrationSteps: [
+      { step: '准备', instruction: '双手抓紧单杠，身体自然下垂。', audioCue: '准备' },
+      { step: '拉起', instruction: '背部发力将身体垂直拉起。', audioCue: '拉起' },
+      { step: '下放', instruction: '缓慢控制下放身体。', audioCue: '缓慢下放' }
+    ]
+  },
+  {
+    id: 'bicep-curls',
+    name: '负重弯举 (Bicep Curls)',
+    description: '手持重物（水瓶或书包），大臂贴紧身体。屈肘将重物举向肩膀，然后缓慢放下。',
+    sets: '3 组',
+    reps: '12 次',
+    tips: ['锻炼肱二头肌', '不要晃动身体', '控制下放速度'],
+    category: 'Upper Pull',
+    equipment: 'Water Bottle',
+    targetMuscles: ['Biceps'],
+    demonstrationSteps: [
+      { step: '准备', instruction: '手持重物，双臂下垂。', audioCue: '准备' },
+      { step: '弯举', instruction: '发力将重物弯举至肩前。', audioCue: '向上弯举' },
+      { step: '下放', instruction: '缓慢控制还原。', audioCue: '缓慢放下' }
+    ]
+  },
+  {
+    id: 'weighted-crunches',
+    name: '负重卷腹 (Weighted Crunches)',
+    description: '仰卧，膝盖弯曲，胸前抱一个重物。腹部发力使肩胛骨离地，挤压腹肌。',
+    sets: '3 组',
+    reps: '15 次',
+    tips: ['增加腹肌厚度', '挤压感优先', '颈部保持放松'],
+    category: 'Core',
+    equipment: 'Water Bottle',
+    targetMuscles: ['Abs'],
+    demonstrationSteps: [
+      { step: '准备', instruction: '胸前抱重物仰卧，膝盖弯曲。', audioCue: '准备' },
+      { step: '卷腹', instruction: '腹肌发力抬起上背部。', audioCue: '卷起' },
+      { step: '下放', instruction: '缓慢回到起始位。', audioCue: '慢慢躺下' }
+    ]
+  },
+  {
+    id: 'russian-twists',
+    name: '俄罗斯转体 (Russian Twists)',
+    description: '坐姿，双腿微屈悬空。双手持重物在身体两侧交替触碰地面，感受侧腹收缩。',
+    sets: '3 组',
+    reps: '每侧 15 次',
+    tips: ['雕刻侧腹线条', '核心保持稳定', '控制旋转节奏'],
+    category: 'Core',
+    equipment: 'Water Bottle',
+    targetMuscles: ['Obliques', 'Core'],
+    demonstrationSteps: [
+      { step: '准备', instruction: '坐下，核心收紧，保持平衡。', audioCue: '准备' },
+      { step: '转体', instruction: '躯干带动双手向两侧转动。', audioCue: '左右转动' }
+    ]
+  },
   // HEIGHT OPTIMIZATION
   {
     id: 'dead-hang',
@@ -517,6 +581,18 @@ export const WORKOUT_SETS: WorkoutSet[] = [
     ].map(id => MASTER_EXERCISE_LIBRARY.find(ex => ex.id === id)!)
   },
   {
+    id: 'upper-body-abs',
+    name: '上半身全肌肉群增肌计划 (High Volume)',
+    description: '涵盖胸、背、肩、手、腹，旨在增加肌肉量与雕刻线条。',
+    difficulty: 'Advanced',
+    category: 'Upper',
+    exercises: [
+      'pull-ups', 'inverted-row', 'bicep-curls', 
+      'standard-pushups', 'pike-pushups', 'diamond-pushups', 'dips',
+      'leg-raises', 'weighted-crunches', 'russian-twists', 'superman'
+    ].map(id => MASTER_EXERCISE_LIBRARY.find(ex => ex.id === id)!)
+  },
+  {
     id: 'height-day',
     name: '身高优化日',
     description: '低强度拉伸与悬挂，促进骨骼生长，适合周三、周日。',
@@ -605,5 +681,10 @@ export const NUTRITION_TIPS: NutritionTip[] = [
     title: "拒绝“生长小偷”",
     content: "严格戒掉含糖饮料（可乐、奶茶）。高糖会抑制生长激素的分泌，让你白练了。",
     icon: "x"
+  },
+  {
+    title: "增肌的 3 个关键点",
+    content: "1. 渐进性负荷：不断增加难度；2. 离心控制：下放过程要慢(2-3秒)；3. 只有吃力，肌肉才会生长。",
+    icon: "award"
   }
 ];
