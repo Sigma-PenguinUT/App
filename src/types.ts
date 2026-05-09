@@ -6,8 +6,9 @@ export interface Exercise {
   reps: string;
   tips: string[];
   category: 'Lower' | 'Upper Push' | 'Upper Pull' | 'Core' | 'Full Body' | 'Running' | 'Rest' | 'Warmup' | 'Cooldown' | 'Cardio';
-  equipment: 'None' | 'Chair' | 'Wall' | 'Towel' | 'Water Bottle' | 'Table' | 'Bar' | 'Bench';
+  equipment: 'None' | 'Chair' | 'Wall' | 'Towel' | 'Water Bottle' | 'Table' | 'Bar' | 'Bench' | 'Backpack' | 'Laundry Detergent';
   targetMuscles: string[];
+  restTime?: number; // in seconds
   demonstrationSteps?: {
     step: string;
     instruction: string;

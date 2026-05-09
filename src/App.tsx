@@ -456,7 +456,8 @@ export default function App() {
         }
       } else {
         setWorkoutState('rest');
-        setTimeLeft(15);
+        const currentEx = currentPlan.exercises[currentExerciseIndex];
+        setTimeLeft(currentEx?.restTime || 15);
       }
     } else if (workoutState === 'rest') {
       startExercise(currentExerciseIndex + 1, currentRound);
@@ -1190,7 +1191,7 @@ export default function App() {
                   </div>
                   <div>
                     <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                    <p className="text-sm text-zinc-500">{ex.sets} × {ex.reps}</p>
+                    <p className="text-sm text-zinc-500">{ex.sets} {ex.reps}</p>
                   </div>
                 </div>
                 <ChevronRight className="w-5 h-5 text-zinc-300" />
@@ -1320,7 +1321,7 @@ export default function App() {
                       </div>
                       <div>
                         <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                        <p className="text-sm text-zinc-500">{ex.sets} × {ex.reps}</p>
+                        <p className="text-sm text-zinc-500">{ex.sets} {ex.reps}</p>
                       </div>
                     </div>
                     <ChevronRight className="w-5 h-5 text-zinc-300" />
@@ -1594,7 +1595,7 @@ export default function App() {
                     </div>
                     <div>
                       <h4 className="font-bold text-zinc-900">{ex.name}</h4>
-                      <p className="text-xs text-zinc-500">{ex.sets} × {ex.reps}</p>
+                      <p className="text-xs text-zinc-500">{ex.sets} {ex.reps}</p>
                     </div>
                   </div>
                   <ChevronRight className="w-5 h-5 text-zinc-300" />
