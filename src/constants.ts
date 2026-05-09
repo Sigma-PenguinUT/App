@@ -589,6 +589,7 @@ export const WORKOUT_SETS: WorkoutSet[] = [
     exercises: [
       'pull-ups', 'inverted-row', 'bicep-curls', 
       'standard-pushups', 'pike-pushups', 'diamond-pushups', 'dips',
+      'wall-w-stretch', 'dynamic-plank',
       'leg-raises', 'weighted-crunches', 'russian-twists', 'superman'
     ].map(id => MASTER_EXERCISE_LIBRARY.find(ex => ex.id === id)!)
   },
