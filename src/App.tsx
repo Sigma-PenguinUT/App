@@ -38,8 +38,12 @@ import {
   Award,
   Trash2,
   Users,
-  Bell
+  Bell,
+  BrainCircuit,
+  Sparkles,
+  ArrowUpRight
 } from 'lucide-react';
+import { GoogleGenAI, Type } from "@google/genai";
 import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS, COMMON_WARMUP, COMMON_COOLDOWN } from './constants';
 import { DayPlan, Exercise, WorkoutSet } from './types';
 import { translations } from './translations';
@@ -94,7 +98,11 @@ export default function App() {
   } | null>(null);
   const [userLogs, setUserLogs] = useState<any[]>([]);
   const [language, setLanguage] = useState<'zh' | 'en'>('zh');
+  const [aiAdvice, setAiAdvice] = useState<string | null>(null);
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
   const t = translations[language];
+
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
   // Friend System State
   const [friendsList, setFriendsList] = useState<any[]>([]);
@@ -369,7 +377,11 @@ export default function App() {
 
   const getSeconds = (reps: string) => {
     const match = reps.match(/(\d+)/);
-    return match ? parseInt(match[1], 10) : 45;
+    // If it's a "次" (rep) based exercise, we provide a comfortable 60s per set
+    // If it was "秒", we use that number.
+    // Actually, following the user's request, we move to sets. 
+    // I'll keep the timer as a "Set duration" helper.
+    return 60; 
   };
 
   // Audio Beep
@@ -652,37 +664,42 @@ export default function App() {
             >
               {(workoutState === 'exercise' || workoutState === 'warmup' || workoutState === 'cooldown') && currentEx ? (
                 <>
-                  <div 
-                    onClick={handlePhaseTransition}
-                    className="w-72 h-72 mx-auto bg-zinc-900 rounded-[3rem] flex items-center justify-center border-8 border-zinc-800 relative overflow-hidden group shadow-2xl shadow-emerald-500/10 cursor-pointer active:scale-95 transition-transform"
-                  >
-                    <Dumbbell className="w-32 h-32 text-emerald-500 opacity-20" />
-                    
-                    <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 100 100">
-                      <circle 
-                        cx="50" cy="50" r="46" 
-                        fill="none" stroke="currentColor" strokeWidth="4" 
-                        className="text-zinc-800/50" 
-                      />
-                      <motion.circle 
-                        cx="50" cy="50" r="46" 
-                        fill="none" stroke="currentColor" strokeWidth="4" 
-                        strokeDasharray="289.02"
-                        animate={{ strokeDashoffset: 289.02 * (1 - timeLeft / getSeconds(currentEx.reps)) }}
-                        className="text-emerald-500" 
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                    
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1">
-                        {timeLeft > 0 ? 'Remaining' : 'Extra Time'}
-                      </span>
-                      <span className={`text-7xl font-display font-black tabular-nums tracking-tighter ${timeLeft > 0 ? 'text-white' : 'text-emerald-400'}`}>
-                        {timeLeft > 0 ? timeLeft : extraTime}s
-                      </span>
+                    <div 
+                      onClick={handlePhaseTransition}
+                      className="w-72 h-72 mx-auto bg-zinc-900 rounded-[3rem] flex items-center justify-center border-8 border-zinc-800 relative overflow-hidden group shadow-2xl shadow-emerald-500/10 cursor-pointer active:scale-95 transition-transform"
+                    >
+                      <Target className="w-32 h-32 text-emerald-500 opacity-20" />
+                      
+                      <svg className="absolute inset-0 -rotate-90 pointer-events-none" viewBox="0 0 100 100">
+                        <circle 
+                          cx="50" cy="50" r="46" 
+                          fill="none" stroke="currentColor" strokeWidth="4" 
+                          className="text-zinc-800/50" 
+                        />
+                        <motion.circle 
+                          cx="50" cy="50" r="46" 
+                          fill="none" stroke="currentColor" strokeWidth="4" 
+                          strokeDasharray="289.02"
+                          animate={{ strokeDashoffset: 289.02 * (1 - timeLeft / getSeconds(currentEx.reps)) }}
+                          className="text-emerald-500" 
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      
+                      <div className="absolute inset-0 flex flex-col items-center justify-center">
+                        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-500 mb-1">
+                          {workoutState === 'exercise' ? (language === 'zh' ? '目标次数' : 'Target Reps') : 'Timer'}
+                        </span>
+                        <span className={`text-6xl font-display font-black tabular-nums tracking-tighter text-white`}>
+                          {workoutState === 'exercise' ? currentEx.reps : `${timeLeft}s`}
+                        </span>
+                        {workoutState === 'exercise' && (
+                          <div className="mt-4 bg-emerald-500 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" /> Done?
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
                   <div className="space-y-4">
                     <h2 className="text-4xl font-display font-bold tracking-tight">{currentEx.name}</h2>
                     <div className="flex flex-col gap-2">
@@ -868,14 +885,16 @@ export default function App() {
     
     const activeDays = new Set(userLogs.map(l => l.date.split('T')[0]));
 
-    // Dynamic Growth Prediction
+    // Dynamic Growth Prediction (AI-Enhanced Heuristic)
     const getPrediction = () => {
       if (userLogs.length === 0) {
         return {
           exercise: language === 'zh' ? '尚未开始' : 'Not started',
           maxSet: '---',
           predictedNext: '---',
-          unit: ''
+          suggestedSets: 3,
+          unit: '次',
+          trend: 'stable'
         };
       }
       
@@ -895,19 +914,43 @@ export default function App() {
       });
       
       const ex = MASTER_EXERCISE_LIBRARY.find(e => e.id === bestExId);
-      const logs = exerciseGroups[bestExId].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-      const lastLog = logs[0];
+      const logs = [...exerciseGroups[bestExId]].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       const maxVal = Math.max(...logs.map(l => l.value));
+      const recentVals = logs.slice(0, 3).map(l => l.value);
+      const averageRecent = recentVals.reduce((a, b) => a + b, 0) / recentVals.length;
       
-      const unit = lastLog.type === 'seconds' ? 's' : '';
+      // AI Logic: If recent consistency is high, suggest +1 set or +10% reps
+      const shouldIncreaseSets = logs.length >= 3 && averageRecent >= (maxVal * 0.9);
+      const predictedNext = Math.ceil(averageRecent * 1.1);
+      const suggestedSets = shouldIncreaseSets ? 4 : 3;
 
       return {
         exercise: ex?.name || bestExId,
         maxSet: maxVal,
-        predictedNext: lastLog.type === 'seconds' ? maxVal + 5 : maxVal + 2,
-        type: lastLog.type,
-        unit
+        predictedNext,
+        suggestedSets,
+        unit: '次',
+        trend: predictedNext > averageRecent ? 'up' : 'stable'
       };
+    };
+
+    const analyzeTrainingData = async () => {
+      if (userLogs.length === 0) return;
+      setIsAnalyzing(true);
+      try {
+        const recentLogs = userLogs.slice(-10).map(l => `${l.date}: ${l.exerciseId} - ${l.value} reps`).join('\n');
+        const prompt = `Analyze these training logs and provide a short, motivating suggestion (max 2 sentences) for future sets and progression. Mention specific exercises if relevant. Respond in ${language === 'zh' ? 'Chinese' : 'English'}.\nLogs:\n${recentLogs}`;
+        
+        const response = await ai.models.generateContent({
+          model: "gemini-3-flash-preview",
+          contents: prompt,
+        });
+        setAiAdvice(response.text);
+      } catch (err) {
+        console.error('AI Error:', err);
+      } finally {
+        setIsAnalyzing(false);
+      }
     };
 
     const prediction = getPrediction();

@@ -50,6 +50,7 @@ export const translations = {
     goal1: '完成 3 组正式训练',
     goal2: '训练时长超过 15 分钟',
     goal3: '在休息阶段手动记录数据',
+    targetReps: '目标次数',
   },
   en: {
     today: 'Today',
@@ -102,5 +103,6 @@ export const translations = {
     goal1: 'Complete 3 main sets',
     goal2: 'Train for over 15 mins',
     goal3: 'Manual log during rest',
+    targetReps: 'Target Reps',
   }
 };
