@@ -43,16 +43,10 @@ import {
   Sparkles,
   ArrowUpRight
 } from 'lucide-react';
-import { GoogleGenAI, Type } from "@google/genai";
 import { WEEKLY_PLAN, NUTRITION_TIPS, MASTER_EXERCISE_LIBRARY, WORKOUT_SETS, COMMON_WARMUP, COMMON_COOLDOWN } from './constants';
 import { DayPlan, Exercise, WorkoutSet } from './types';
 import { translations } from './translations';
-import Auth from './components/Auth';
-import Chatbot from './components/Chatbot';
 import PerformanceCharts from './components/PerformanceCharts';
-import { auth, db, handleFirestoreError, OperationType } from './lib/firebase';
-import { doc, getDoc, setDoc, updateDoc, collection, addDoc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
-import { User as FirebaseUser } from 'firebase/auth';
 
 const IconMap: Record<string, React.ReactNode> = {
   Egg: <Egg className="w-5 h-5" />,
@@ -85,15 +79,14 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCategory, setFilterCategory] = useState<string>('All');
 
-  // User & Progress State
-  const [user, setUser] = useState<FirebaseUser | null>(null);
+  // User & Progress State (Shifted to localStorage for no-API requirement)
   const [profile, setProfile] = useState<{ 
     xp: number; 
     streak: number; 
     level: number; 
     lastCheckIn?: string;
     language?: 'zh' | 'en';
-    friends?: string[];
+    username?: string;
     completedGoals?: string[];
   } | null>(null);
   const [userLogs, setUserLogs] = useState<any[]>([]);
@@ -102,14 +95,9 @@ export default function App() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const t = translations[language];
 
-  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
-  // Friend System State
-  const [friendsList, setFriendsList] = useState<any[]>([]);
-  const [friendRequests, setFriendRequests] = useState<any[]>([]);
-  const [searchUsername, setSearchUsername] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [isSearching, setIsSearching] = useState(false);
+  // Friend System (Mocked for local mode)
+  const friendsList: any[] = [];
+  const friendRequests: any[] = [];
 
   // Workout Timer State
   const [workoutState, setWorkoutState] = useState<WorkoutState>('idle');
@@ -144,78 +132,50 @@ export default function App() {
     if (!selectedDay) setSelectedDay(todayPlan);
   }, [todayPlan]);
 
-  // Fetch User Profile & Logs
+  // Load from localStorage on mount
   useEffect(() => {
-    if (user) {
-      const fetchProfile = async () => {
-        try {
-          const docRef = doc(db, 'users', user.uid);
-          const docSnap = await getDoc(docRef);
-          if (docSnap.exists()) {
-            const data = docSnap.data() as any;
-            setProfile(data);
-            if (data.language) setLanguage(data.language);
-          }
-          
-          const logsRef = collection(db, 'users', user.uid, 'logs');
-          const logsSnap = await getDocs(logsRef);
-          setUserLogs(logsSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        } catch (err) {
-          console.error('Error fetching profile:', err);
-        }
-      };
-      fetchProfile();
+    const savedProfile = localStorage.getItem('user_profile');
+    const savedLogs = localStorage.getItem('user_logs');
+    
+    if (savedProfile) {
+      const parsed = JSON.parse(savedProfile);
+      setProfile(parsed);
+      setLanguage(parsed.language || 'zh');
     } else {
-      setProfile(null);
-      setUserLogs([]);
-    }
-  }, [user]);
-
-  // Auto-collect XP from Daily Goals
-  useEffect(() => {
-    if (!user || !profile) return;
-
-    const today = new Date().toISOString().split('T')[0];
-    const completedGoalsToday = profile.completedGoals || [];
-
-    const goals = [
-      { id: 'goal1', xp: 50, check: () => userLogs.filter(l => l.date.includes(today)).length >= 3 },
-      // Goal 2 and 3 are harder to track without more state, but let's stick to goal 1 for now
-    ];
-
-    const newCompleted = [...completedGoalsToday];
-    let xpToAdd = 0;
-    let changed = false;
-
-    goals.forEach(goal => {
-      const goalKey = `${goal.id}_${today}`;
-      if (!newCompleted.includes(goalKey) && goal.check()) {
-        newCompleted.push(goalKey);
-        xpToAdd += goal.xp;
-        changed = true;
-      }
-    });
-
-    if (changed) {
-      const updateXP = async () => {
-        try {
-          const docRef = doc(db, 'users', user.uid);
-          await updateDoc(docRef, {
-            xp: profile.xp + xpToAdd,
-            completedGoals: newCompleted
-          });
-          setProfile(prev => prev ? { ...prev, xp: prev.xp + xpToAdd, completedGoals: newCompleted } : null);
-        } catch (err) {
-          console.error('Error auto-collecting XP:', err);
-        }
+      // Default initial profile
+      const initialProfile = {
+        xp: 0,
+        streak: 0,
+        level: 1,
+        username: '健身达人',
+        language: 'zh' as const,
+        completedGoals: []
       };
-      updateXP();
+      setProfile(initialProfile);
+      setLanguage('zh');
+      localStorage.setItem('user_profile', JSON.stringify(initialProfile));
     }
-  }, [userLogs, profile, user]);
+    
+    if (savedLogs) {
+      setUserLogs(JSON.parse(savedLogs));
+    }
+  }, []);
+
+  // Sync profile to localStorage
+  useEffect(() => {
+    if (profile) {
+      localStorage.setItem('user_profile', JSON.stringify(profile));
+    }
+  }, [profile]);
+
+  // Sync logs to localStorage
+  useEffect(() => {
+    localStorage.setItem('user_logs', JSON.stringify(userLogs));
+  }, [userLogs]);
 
   // Daily Check-in Logic
-  const handleCheckIn = async () => {
-    if (!user || !profile) return;
+  const handleCheckIn = () => {
+    if (!profile) return;
     const today = new Date().toISOString().split('T')[0];
     const lastCheckIn = profile.lastCheckIn?.split('T')[0];
 
@@ -232,123 +192,19 @@ export default function App() {
       newStreak = 1;
     }
 
-    try {
-      const docRef = doc(db, 'users', user.uid);
-      await updateDoc(docRef, {
-        streak: newStreak,
-        xp: profile.xp + 50, // 50 XP for check-in
-        lastCheckIn: new Date().toISOString()
-      });
-      setProfile(prev => prev ? { ...prev, streak: newStreak, xp: prev.xp + 50, lastCheckIn: new Date().toISOString() } : null);
-    } catch (err) {
-      handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
-    }
+    setProfile(prev => prev ? { 
+      ...prev, 
+      streak: newStreak, 
+      xp: prev.xp + 50, 
+      lastCheckIn: new Date().toISOString() 
+    } : null);
   };
 
-  // Friend System Logic
-  const searchUsers = async () => {
-    if (!searchUsername.trim()) return;
-    setIsSearching(true);
-    try {
-      const q = query(
-        collection(db, 'users'),
-        where('displayName', '>=', searchUsername),
-        where('displayName', '<=', searchUsername + '\uf8ff')
-      );
-      const querySnapshot = await getDocs(q);
-      const results = querySnapshot.docs
-        .map(d => ({ uid: d.id, ...d.data() }))
-        .filter((u: any) => u.uid !== user?.uid);
-      setSearchResults(results);
-    } catch (err) {
-      console.error('Error searching users:', err);
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  const sendFriendRequest = async (targetUid: string) => {
-    if (!user) return;
-    try {
-      await addDoc(collection(db, 'friendRequests'), {
-        from: user.uid,
-        to: targetUid,
-        status: 'pending',
-        timestamp: new Date().toISOString(),
-        fromName: profile?.displayName || user.email?.split('@')[0]
-      });
-      alert('Friend request sent!');
-    } catch (err) {
-      console.error('Error sending friend request:', err);
-    }
-  };
-
-  const handleFriendRequest = async (requestId: string, status: 'accepted' | 'rejected') => {
-    if (!user || !profile) return;
-    try {
-      const requestRef = doc(db, 'friendRequests', requestId);
-      const requestSnap = await getDoc(requestRef);
-      if (!requestSnap.exists()) return;
-      const requestData = requestSnap.data();
-
-      await updateDoc(requestRef, { status });
-
-      if (status === 'accepted') {
-        // Add to both users' friends list
-        const myRef = doc(db, 'users', user.uid);
-        const theirRef = doc(db, 'users', requestData.from);
-
-        const myFriends = [...(profile.friends || []), requestData.from];
-        await updateDoc(myRef, { friends: myFriends });
-        setProfile(prev => prev ? { ...prev, friends: myFriends } : null);
-
-        const theirSnap = await getDoc(theirRef);
-        if (theirSnap.exists()) {
-          const theirFriends = [...(theirSnap.data().friends || []), user.uid];
-          await updateDoc(theirRef, { friends: theirFriends });
-        }
-      }
-      setFriendRequests(prev => prev.filter(r => r.id !== requestId));
-    } catch (err) {
-      console.error('Error handling friend request:', err);
-    }
-  };
-
-  useEffect(() => {
-    if (user) {
-      const fetchFriendRequests = async () => {
-        const q = query(collection(db, 'friendRequests'), where('to', '==', user.uid), where('status', '==', 'pending'));
-        const snap = await getDocs(q);
-        setFriendRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
-      };
-      
-      const fetchFriends = async () => {
-        if (!profile?.friends?.length) {
-          setFriendsList([]);
-          return;
-        }
-        const friends = [];
-        for (const fUid of profile.friends) {
-          const d = await getDoc(doc(db, 'users', fUid));
-          if (d.exists()) friends.push({ uid: d.id, ...d.data() });
-        }
-        setFriendsList(friends);
-      };
-
-      fetchFriendRequests();
-      fetchFriends();
-    }
-  }, [user, profile?.friends]);
-
-  const toggleLanguage = async () => {
+  const toggleLanguage = () => {
     const newLang = language === 'zh' ? 'en' : 'zh';
     setLanguage(newLang);
-    if (user) {
-      try {
-        await updateDoc(doc(db, 'users', user.uid), { language: newLang });
-      } catch (err) {
-        console.error('Error saving language preference:', err);
-      }
+    if (profile) {
+      setProfile({ ...profile, language: newLang });
     }
   };
   useEffect(() => {
@@ -477,11 +333,6 @@ export default function App() {
   };
 
   const submitSetPerformance = async () => {
-    if (!user) {
-      setSubmitFeedback('error');
-      setTimeout(() => setSubmitFeedback(null), 3000);
-      return;
-    }
     if (!pendingLog) return;
     
     // Don't auto-submit if the set was too short (likely a skip)
@@ -495,29 +346,32 @@ export default function App() {
     const finalValue = manualPerformance ? parseInt(manualPerformance) : (pendingLog.baseValue + pendingLog.extraValue);
     
     try {
-      // 1. Log the performance
-      await addDoc(collection(db, 'users', user.uid, 'logs'), {
+      // 1. Log the performance (local)
+      const newLog = {
+        id: Date.now().toString(),
         exerciseId: pendingLog.id,
         date: new Date().toISOString(),
         value: finalValue,
         type: pendingLog.type
-      });
+      };
+      
+      setUserLogs(prev => [...prev, newLog]);
 
       // 2. Award XP immediately (Bonus for effort)
       const baseXP = 25;
       const effortBonus = Math.floor((pendingLog.actualElapsed || 0) / 10); // 1 XP per 10 seconds
       const xpGained = baseXP + effortBonus;
       
-      const newXp = (profile?.xp || 0) + xpGained;
-      const newLevel = Math.floor(newXp / 1000) + 1;
-      
-      await updateDoc(doc(db, 'users', user.uid), {
-        xp: newXp,
-        level: newLevel
-      });
+      if (profile) {
+        const newXp = profile.xp + xpGained;
+        const newLevel = Math.floor(newXp / 1000) + 1;
+        setProfile({
+          ...profile,
+          xp: newXp,
+          level: newLevel
+        });
+      }
 
-      setProfile(prev => prev ? { ...prev, xp: newXp, level: newLevel } : null);
-      
       setPendingLog(null);
       setManualPerformance('');
       setSubmitFeedback('success');
@@ -531,27 +385,17 @@ export default function App() {
     }
   };
 
-  const handleWorkoutComplete = async () => {
-    if (!user || !profile) return;
-    try {
-      const docRef = doc(db, 'users', user.uid);
-      const xpGained = 300; // Bonus for full workout
-      const newXp = profile.xp + xpGained;
-      const newLevel = Math.floor(newXp / 1000) + 1;
-      
-      await updateDoc(docRef, {
-        xp: newXp,
-        level: newLevel
-      });
-      
-      setProfile(prev => prev ? { 
-        ...prev, 
-        xp: newXp, 
-        level: newLevel 
-      } : null);
-    } catch (err) {
-      console.error('Error updating XP:', err);
-    }
+  const handleWorkoutComplete = () => {
+    if (!profile) return;
+    const xpGained = 300; // Bonus for full workout
+    const newXp = profile.xp + xpGained;
+    const newLevel = Math.floor(newXp / 1000) + 1;
+    
+    setProfile(prev => prev ? { 
+      ...prev, 
+      xp: newXp, 
+      level: newLevel 
+    } : null);
   };
 
   const startExercise = (index: number, round: number) => {
@@ -750,20 +594,19 @@ export default function App() {
                         className="flex-1 bg-zinc-800 border-none rounded-xl px-4 py-3 text-white outline-none focus:ring-2 focus:ring-emerald-500/20"
                       />
                       <button 
-                        onClick={async () => {
+                        onClick={() => {
                           const val = (document.getElementById('perf-input') as HTMLInputElement).value;
-                          if (val && user) {
-                            try {
-                              await addDoc(collection(db, 'users', user.uid, 'logs'), {
-                                exerciseId: 'squats',
-                                date: new Date().toISOString(),
-                                value: parseInt(val),
-                                type: 'reps'
-                              });
-                              alert('记录成功！');
-                            } catch (err) {
-                              console.error(err);
-                            }
+                          if (val) {
+                            const newLog = {
+                              id: Date.now().toString(),
+                              exerciseId: 'squats',
+                              date: new Date().toISOString(),
+                              value: parseInt(val),
+                              type: 'reps'
+                            };
+                            setUserLogs(prev => [...prev, newLog]);
+                            alert('记录成功！');
+                            (document.getElementById('perf-input') as HTMLInputElement).value = '';
                           }
                         }}
                         className="bg-emerald-500 text-white px-6 rounded-xl font-bold text-sm"
@@ -831,9 +674,6 @@ export default function App() {
                           )}
                         </button>
                       </div>
-                      {submitFeedback === 'error' && !user && (
-                        <p className="text-[10px] text-rose-400 font-bold text-center">请先登录以保存数据</p>
-                      )}
                     </motion.div>
                   )}
                 </div>
@@ -939,14 +779,8 @@ export default function App() {
       if (userLogs.length === 0) return;
       setIsAnalyzing(true);
       try {
-        const recentLogs = userLogs.slice(-10).map(l => `${l.date}: ${l.exerciseId} - ${l.value} reps`).join('\n');
-        const prompt = `Analyze these training logs and provide a short, motivating suggestion (max 2 sentences) for future sets and progression. Mention specific exercises if relevant. Respond in ${language === 'zh' ? 'Chinese' : 'English'}.\nLogs:\n${recentLogs}`;
-        
-        const response = await ai.models.generateContent({
-          model: "gemini-3-flash-preview",
-          contents: prompt,
-        });
-        setAiAdvice(response.text);
+        // AI is disabled as per user request to avoid API dependencies
+        setAiAdvice(language === 'zh' ? '继续保持！你的训练记录显示出稳定的进步。' : 'Keep it up! Your training logs show steady progress.');
       } catch (err) {
         console.error('AI Error:', err);
       } finally {
@@ -1747,10 +1581,19 @@ export default function App() {
     >
       <section className="bg-white p-6 rounded-[2.5rem] border border-zinc-200 shadow-sm">
         <h3 className="text-xl font-display font-bold mb-6">账户中心</h3>
-        <Auth onUserChange={setUser} profile={profile} />
+        <div className="flex items-center gap-3 bg-zinc-100 p-2 rounded-2xl border border-zinc-200">
+          <div className="w-8 h-8 bg-emerald-500 rounded-full flex items-center justify-center text-white">
+            <UserIcon className="w-4 h-4" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[10px] text-zinc-500 font-bold uppercase truncate">
+              {profile?.username || '健身达人'}
+            </p>
+          </div>
+        </div>
       </section>
 
-      {user && (
+      {profile && (
         <>
           <section className="bg-zinc-900 text-white p-8 rounded-[2.5rem] shadow-xl relative overflow-hidden">
             <div className="relative z-10">
@@ -1879,14 +1722,9 @@ export default function App() {
                         <p className="text-[8px] text-zinc-400 font-bold uppercase tracking-widest">Performance</p>
                       </div>
                       <button 
-                        onClick={async () => {
+                        onClick={() => {
                           if (window.confirm(language === 'zh' ? '确定要删除这条记录吗？' : 'Are you sure you want to delete this log?')) {
-                            try {
-                              await deleteDoc(doc(db, 'logs', log.id));
-                              setUserLogs(prev => prev.filter(l => l.id !== log.id));
-                            } catch (error) {
-                              handleFirestoreError(error, OperationType.DELETE, 'logs');
-                            }
+                            setUserLogs(prev => prev.filter(l => l.id !== log.id));
                           }
                         }}
                         className="p-2 text-zinc-300 hover:text-rose-500 transition-colors"
@@ -1903,137 +1741,6 @@ export default function App() {
                   <p className="text-sm text-zinc-400">暂无历史记录</p>
                 </div>
               )}
-            </div>
-          </section>
-          <section className="bg-white p-6 rounded-[2.5rem] border border-zinc-200 shadow-sm">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-display font-bold">{t.friends}</h3>
-              <div className="flex items-center gap-1 bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">
-                <Users className="w-3 h-3" /> {friendsList.length}
-              </div>
-            </div>
-            
-            <div className="space-y-6">
-              {/* Search Users Section */}
-              <div className="bg-zinc-50 p-5 rounded-3xl border border-zinc-100 space-y-4">
-                <h4 className="text-xs font-black uppercase tracking-[0.2em] text-zinc-400 flex items-center gap-2">
-                  <Search className="w-3 h-3" /> {language === 'zh' ? '发现新伙伴' : 'Discover New Friends'}
-                </h4>
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-400" />
-                    <input 
-                      type="text"
-                      placeholder={language === 'zh' ? '输入用户名搜索...' : 'Search by username...'}
-                      value={searchUsername}
-                      onChange={(e) => setSearchUsername(e.target.value)}
-                      className="w-full bg-white border border-zinc-200 rounded-2xl py-3 pl-10 text-sm focus:ring-2 focus:ring-emerald-500 transition-all"
-                    />
-                  </div>
-                  <motion.button 
-                    whileTap={{ scale: 0.95 }}
-                    onClick={searchUsers}
-                    disabled={isSearching}
-                    className="bg-zinc-900 text-white px-6 rounded-2xl text-xs font-bold disabled:opacity-50 shadow-lg shadow-zinc-200"
-                  >
-                    {isSearching ? '...' : t.searchFriends}
-                  </motion.button>
-                </div>
-
-                {/* Search Results */}
-                {searchResults.length > 0 ? (
-                  <div className="space-y-2 pt-2">
-                    {searchResults.map(res => (
-                      <motion.div 
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        key={res.uid} 
-                        className="flex items-center justify-between bg-white p-3 rounded-2xl border border-zinc-100 shadow-sm"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-zinc-50 rounded-xl flex items-center justify-center">
-                            <UserIcon className="w-5 h-5 text-zinc-400" />
-                          </div>
-                          <div>
-                            <p className="text-xs font-bold text-zinc-900">{res.displayName}</p>
-                            <p className="text-[10px] text-zinc-400">Level {res.level || 1}</p>
-                          </div>
-                        </div>
-                        <motion.button 
-                          whileTap={{ scale: 0.9 }}
-                          onClick={() => sendFriendRequest(res.uid)}
-                          className="bg-emerald-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg shadow-emerald-500/20"
-                        >
-                          {t.addFriend}
-                        </motion.button>
-                      </motion.div>
-                    ))}
-                  </div>
-                ) : searchUsername && !isSearching && (
-                  <p className="text-[10px] text-zinc-400 text-center py-2 italic">
-                    {language === 'zh' ? '未找到用户' : 'No users found'}
-                  </p>
-                )}
-              </div>
-
-              {/* Friend Requests */}
-              {friendRequests.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2">{t.friendRequests}</p>
-                  {friendRequests.map(req => (
-                    <div key={req.id} className="flex items-center justify-between bg-amber-50 p-3 rounded-2xl border border-amber-100">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center">
-                          <UserIcon className="w-4 h-4 text-zinc-400" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-zinc-900">{req.fromName}</p>
-                          <p className="text-[8px] text-zinc-400">{t.pending}</p>
-                        </div>
-                      </div>
-                      <div className="flex gap-2">
-                        <button 
-                          onClick={() => handleFriendRequest(req.id, 'accepted')}
-                          className="bg-emerald-500 text-white px-2 py-1 rounded-lg text-[10px] font-bold"
-                        >
-                          {t.accept}
-                        </button>
-                        <button 
-                          onClick={() => handleFriendRequest(req.id, 'rejected')}
-                          className="bg-zinc-200 text-zinc-600 px-2 py-1 rounded-lg text-[10px] font-bold"
-                        >
-                          {t.reject}
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Friends List */}
-              <div className="space-y-2">
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2">{t.myFriends}</p>
-                {friendsList.length > 0 ? (
-                  friendsList.map(friend => (
-                    <div key={friend.uid} className="flex items-center justify-between bg-white p-3 rounded-2xl border border-zinc-100 shadow-sm">
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 bg-zinc-50 rounded-full flex items-center justify-center">
-                          <UserIcon className="w-5 h-5 text-zinc-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-zinc-900">{friend.displayName}</p>
-                          <p className="text-[10px] text-zinc-400">Level {friend.level || 1} · {friend.xp || 0} XP</p>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-[10px] font-black text-emerald-500 uppercase tracking-widest">{friend.streak || 0} DAY STREAK</p>
-                      </div>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-xs text-zinc-400 text-center py-4 italic">{t.noFriends}</p>
-                )}
-              </div>
             </div>
           </section>
 
@@ -2122,7 +1829,7 @@ export default function App() {
         </nav>
       )}
 
-      {workoutState === 'idle' && !selectedExercise && !selectedSet && <Chatbot />}
+      {workoutState === 'idle' && !selectedExercise && !selectedSet && null}
 
       <AnimatePresence>
         {selectedExercise && renderExerciseDetail(selectedExercise)}
